@@ -1,0 +1,7 @@
+#!/bin/bash
+# Dev placeholder for SynthMind backend.
+# The actual backend runs separately via `make backend`.
+# This script keeps the sidecar alive until the Tauri app exits.
+while true; do
+    sleep 1
+done

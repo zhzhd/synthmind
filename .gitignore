@@ -1,0 +1,15 @@
+.DS_Store
+*.pyc
+__pycache__/
+.venv/
+*.egg-info/
+
+node_modules/
+dist/
+
+.env
+*.local
+backend/.config/providers_config.json
+backend/.config/skills_index.json
+
+frontend/src-tauri/target/
