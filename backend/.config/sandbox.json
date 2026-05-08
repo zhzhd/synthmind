@@ -1,0 +1,30 @@
+[
+  {
+    "id": "9a1c053b",
+    "type": "command",
+    "code": "pwd",
+    "output": "/private/var/folders/pc/7spt065930s4t4p_5149qmg40000gn/T",
+    "timestamp": 1778252351.537712
+  },
+  {
+    "id": "bf1c161e",
+    "type": "command",
+    "code": "pwd",
+    "output": "/private/var/folders/pc/7spt065930s4t4p_5149qmg40000gn/T",
+    "timestamp": 1778252351.518155
+  },
+  {
+    "id": "ca4217b1",
+    "type": "command",
+    "code": "ls -la",
+    "output": "total 57376\n-rw-r--r--@    1 zhangzhendong  staff         0 Apr. 17 20:17 _Users_zhangzhendong_.swiftpm.lock\ndrwx------@  486 zhangzhendong  staff     15552 Mei   8 22:58 .\ndrwxr-xr-x@    6 zhangzhendong  staff       192 Mrt. 20  2025 ..\ndrwx------     3 zhangzhendong  staff        96 Apr. 17 20:10 .AddressBookLocks\ndrwxr-xr-x     5 zhangzhendong  staff       160 Mei   8 22:32 .LINKS\n-rw-------     1 zhangzhendong  staff   2560512 Apr. 17 20:06 .logcat_quark\ndrwxr-xr-x@    3 zhangzhendong  staff",
+    "timestamp": 1778252314.239445
+  },
+  {
+    "id": "0e9b2ddb",
+    "type": "command",
+    "code": "ls -la",
+    "output": "total 57376\n-rw-r--r--@    1 zhangzhendong  staff         0 Apr. 17 20:17 _Users_zhangzhendong_.swiftpm.lock\ndrwx------@  486 zhangzhendong  staff     15552 Mei   8 22:58 .\ndrwxr-xr-x@    6 zhangzhendong  staff       192 Mrt. 20  2025 ..\ndrwx------     3 zhangzhendong  staff        96 Apr. 17 20:10 .AddressBookLocks\ndrwxr-xr-x     5 zhangzhendong  staff       160 Mei   8 22:32 .LINKS\n-rw-------     1 zhangzhendong  staff   2560512 Apr. 17 20:06 .logcat_quark\ndrwxr-xr-x@    3 zhangzhendong  staff",
+    "timestamp": 1778252314.210542
+  }
+]

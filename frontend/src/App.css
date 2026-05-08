@@ -646,3 +646,81 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Settings tabs ──────────────────────────────────── */
+
+.tab-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.tab-btn:hover:not(.active) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* ── Sandbox panel ──────────────────────────────────── */
+
+.sandbox-list {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sandbox-entry {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+}
+
+.sandbox-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.sandbox-type {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.sandbox-code {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-output {
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--accent-green);
+  background: var(--bg);
+  padding: 4px 6px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  max-height: 100px;
+  overflow-y: auto;
+}
