@@ -10,9 +10,10 @@ from core.tools.file_ops import ls, read_file, write_file, edit_file, glob, grep
 from core.tools.web_search import web_search
 from core.tools.todo_tools import write_todos, read_todos, update_task, delete_task, TODO_SYSTEM_PROMPT
 from core.tools.sandbox_tools import execute_command, python_repl
+from core.tools.memory_tools import save_observation, recall_memories
 
 # ── All tools the agent can use ────────────────────────────────────
-TOOLS = [calculator, get_current_time, ls, read_file, write_file, edit_file, grep, glob, web_search, write_todos, read_todos, update_task, delete_task, execute_command, python_repl]
+TOOLS = [calculator, get_current_time, ls, read_file, write_file, edit_file, grep, glob, web_search, write_todos, read_todos, update_task, delete_task, execute_command, python_repl, save_observation, recall_memories]
 
 
 def get_tools():
