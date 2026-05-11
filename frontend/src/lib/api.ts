@@ -254,3 +254,47 @@ export async function installSkillFromUrl(url: string): Promise<SkillInfo> {
   if (!res.ok) throw new Error(`Failed to install skill: ${res.statusText}`);
   return res.json();
 }
+
+// ── Memory management ────────────────────────────────────
+
+export interface MemoryEntry {
+  id: string;
+  type: "user" | "feedback" | "project" | "reference";
+  content: string;
+  tags: string[];
+  priority: number;
+  created_at: number;
+  situation?: string;
+  _score?: number;
+}
+
+export async function fetchMemories(type?: string): Promise<MemoryEntry[]> {
+  const params = type ? `?type=${encodeURIComponent(type)}` : "";
+  const res = await fetch(`${API_BASE}/api/memory${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch memories: ${res.statusText}`);
+  const data = await res.json();
+  return data.memories;
+}
+
+export async function saveMemory(data: {
+  type: string;
+  content: string;
+  tags?: string;
+  situation?: string;
+  priority?: number;
+}): Promise<{ id: string }> {
+  const res = await fetch(`${API_BASE}/api/memory`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to save memory: ${res.statusText}`);
+  return res.json();
+}
+
+export async function deleteMemory(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/memory/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Failed to delete memory: ${res.statusText}`);
+}
