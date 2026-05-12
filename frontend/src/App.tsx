@@ -51,6 +51,8 @@ export default function App() {
           <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
           <TodoPanel />
           <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+          <MemoryPanel />
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
           <SandboxPanel />
           <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
           <AgentPanel />

@@ -12,7 +12,10 @@ from langgraph.graph import END, StateGraph
 from core.llm import get_chat_model
 from core.state import AgentState, ModelConfig
 from core.tools import get_tools, SENSITIVE_TOOLS, get_todo_prompt
+from core.memory import format_memory_context
 from services.threads import get_history, add_messages
+from services.hitl import create_pending, get_pending, resolve_pending
+from services.skills import get_active_skills_instructions
 
 
 def _build_system_prompt(user_prompt: str | None = None) -> str:
@@ -59,6 +62,14 @@ def call_model(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_chat_model(**llm_kw).bind_tools(get_tools())
 
     msgs = [SystemMessage(content=sp)]
+
+    # Inject relevant cross-session memories based on last user message
+    for m in reversed(state["messages"]):
+        if m.get("role") == "user" and m.get("content"):
+            mem_context = format_memory_context(str(m["content"]))
+            if mem_context:
+                sp += mem_context
+            break
 
     # Collect tool_call_ids that have matching tool messages
     executed_ids: set = set()
