@@ -672,6 +672,139 @@ body {
   color: var(--text);
 }
 
+/* ── Agent panel ──────────────────────────────────── */
+
+.agent-list {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-card {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.agent-card-header strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-card-model {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.agent-card-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.agent-card-meta {
+  font-size: 10px;
+  color: var(--accent-blue);
+  margin-bottom: 6px;
+}
+
+.agent-card-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* Agent detail modal */
+
+.agent-detail-modal {
+  width: 680px;
+}
+
+.detail-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.detail-value {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.detail-prompt {
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.5;
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.detail-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+}
+
+.detail-input:focus {
+  border-color: var(--primary);
+}
+
+.detail-result {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.detail-result pre {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--accent-green);
+}
+
 /* ── Memory panel ──────────────────────────────────── */
 
 .memory-list {
