@@ -6,6 +6,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import TodoPanel from "./components/TodoPanel";
 import SandboxPanel from "./components/SandboxPanel";
 import MemoryPanel from "./components/MemoryPanel";
+import AgentPanel from "./components/AgentPanel";
 import type { ModelConfig } from "./lib/api";
 
 const STORAGE_KEY = "synthmind_model_config";
@@ -53,6 +54,10 @@ export default function App() {
           <MemoryPanel />
           <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
           <SandboxPanel />
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+          <AgentPanel />
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+          <MemoryPanel />
         </aside>
         <main style={{ flex: 1, display: "flex" }}>
           <ChatWindow modelConfig={modelConfig} />

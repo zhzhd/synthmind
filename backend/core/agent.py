@@ -22,6 +22,7 @@ def _build_system_prompt(user_prompt: str | None = None) -> str:
     """Build the full system prompt including skills, memory, and todo instructions."""
     base = user_prompt or "You are a helpful AI assistant."
 
+    # Memory usage instructions
     memory_guide = (
         "\n\n## Cross-Session Memory\n"
         "You can save what you learn using `save_observation` so it persists across sessions."
@@ -34,6 +35,9 @@ def _build_system_prompt(user_prompt: str | None = None) -> str:
     )
 
     return base + memory_guide + get_active_skills_instructions() + get_todo_prompt()
+from services.hitl import create_pending, get_pending, resolve_pending
+from services.skills import get_active_skills_instructions
+from core.memory import format_memory_context
 
 
 # ── Graph node: call LLM ───────────────────────────────────────────
@@ -41,6 +45,14 @@ def _build_system_prompt(user_prompt: str | None = None) -> str:
 def call_model(state: AgentState, config: RunnableConfig) -> dict:
     mc: ModelConfig = config["configurable"].get("model_config", ModelConfig())
     sp: str = config["configurable"].get("system_prompt") or _build_system_prompt()
+
+    # Inject relevant cross-session memories based on last user message
+    for m in reversed(state["messages"]):
+        if m.get("role") == "user" and m.get("content"):
+            mem_context = format_memory_context(str(m["content"]))
+            if mem_context:
+                sp += mem_context
+            break
 
     llm_kw = dict(provider=mc.provider, model=mc.model, temperature=mc.temperature, max_tokens=mc.max_tokens)
     if mc.api_key:

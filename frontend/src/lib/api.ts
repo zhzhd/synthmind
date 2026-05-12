@@ -298,3 +298,72 @@ export async function deleteMemory(id: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`Failed to delete memory: ${res.statusText}`);
 }
+
+// ── Sub-agent management ──────────────────────────────
+
+export interface AgentInfo {
+  name: string;
+  description: string;
+  version: string;
+  author: string;
+  tools: string[];
+  model_provider: string;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  path?: string;
+}
+
+export interface AgentDetail extends AgentInfo {
+  system_prompt: string;
+}
+
+export async function fetchAgents(): Promise<AgentInfo[]> {
+  const res = await fetch(`${API_BASE}/api/agents`);
+  if (!res.ok) throw new Error(`Failed to fetch agents: ${res.statusText}`);
+  const data = await res.json();
+  return data.agents;
+}
+
+export async function fetchAgentDetail(name: string): Promise<AgentDetail> {
+  const res = await fetch(`${API_BASE}/api/agents/${encodeURIComponent(name)}`);
+  if (!res.ok) throw new Error(`Failed to fetch agent: ${res.statusText}`);
+  return res.json();
+}
+
+export async function createAgent(data: {
+  name: string;
+  description: string;
+  tools: string[];
+  system_prompt: string;
+  author?: string;
+  model_provider?: string;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+}): Promise<{ name: string }> {
+  const res = await fetch(`${API_BASE}/api/agents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create agent: ${res.statusText}`);
+  return res.json();
+}
+
+export async function deleteAgent(name: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/agents/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Failed to delete agent: ${res.statusText}`);
+}
+
+export async function runAgent(name: string, task: string, context?: string): Promise<{ result: string; run_id: string }> {
+  const res = await fetch(`${API_BASE}/api/agents/${encodeURIComponent(name)}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ task, context: context || "" }),
+  });
+  if (!res.ok) throw new Error(`Failed to run agent: ${res.statusText}`);
+  return res.json();
+}
