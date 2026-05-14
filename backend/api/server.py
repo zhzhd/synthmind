@@ -33,6 +33,8 @@ from api.threads import router as threads_router
 from api.sandbox import router as sandbox_router
 from api.memory import router as memory_router
 from api.agents_api import router as agents_router
+from api.whitelist import router as whitelist_router
+from api.tracing import router as tracing_router
 
 app.include_router(chat_router)
 app.include_router(models_router)
@@ -44,3 +46,5 @@ app.include_router(threads_router)
 app.include_router(sandbox_router)
 app.include_router(memory_router)
 app.include_router(agents_router)
+app.include_router(whitelist_router)
+app.include_router(tracing_router)

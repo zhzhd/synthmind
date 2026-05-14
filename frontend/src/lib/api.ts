@@ -20,6 +20,89 @@ export interface ChatResponse {
   thread_id: string;
 }
 
+// ── Tracing / Observability ──────────────────────────
+
+export interface TraceEntry {
+  id: string;
+  thread_id: string;
+  type: "llm" | "tool" | "error";
+  model: string;
+  name: string;
+  input_preview: string;
+  output_preview: string;
+  token_usage: Record<string, number>;
+  latency_ms: number;
+  timestamp: number;
+  error: string | null;
+}
+
+export async function fetchTraces(threadId?: string): Promise<TraceEntry[]> {
+  const params = threadId ? `?thread_id=${encodeURIComponent(threadId)}` : "";
+  const res = await fetch(`${API_BASE}/api/traces${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch traces: ${res.statusText}`);
+  const data = await res.json();
+  return data.traces || [];
+}
+
+// ── Tool whitelist ────────────────────────────────────
+
+export async function fetchWhitelist(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/whitelist`);
+  if (!res.ok) throw new Error(`Failed to fetch whitelist: ${res.statusText}`);
+  const data = await res.json();
+  return data.whitelist;
+}
+
+export async function addToWhitelist(toolName: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/whitelist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool_name: toolName }),
+  });
+  if (!res.ok) throw new Error(`Failed to add to whitelist: ${res.statusText}`);
+}
+
+export async function removeFromWhitelist(toolName: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/whitelist/${encodeURIComponent(toolName)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Failed to remove from whitelist: ${res.statusText}`);
+}
+
+// ── Thread working directory ──────────────────────────
+
+export interface WorkdirResponse {
+  thread_id: string;
+  workdir: string | null;
+}
+
+export async function fetchThreadWorkdir(threadId: string): Promise<WorkdirResponse> {
+  const res = await fetch(`${API_BASE}/api/threads/${encodeURIComponent(threadId)}/workdir`);
+  if (!res.ok) throw new Error(`Failed to fetch workdir: ${res.statusText}`);
+  return res.json();
+}
+
+export async function setThreadWorkdir(threadId: string, workdir: string): Promise<WorkdirResponse> {
+  const res = await fetch(`${API_BASE}/api/threads/${encodeURIComponent(threadId)}/workdir`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ workdir }),
+  });
+  if (!res.ok) throw new Error(`Failed to set workdir: ${res.statusText}`);
+  return res.json();
+}
+
+export async function pickFolder(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/pick-folder`, { method: "POST" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.path || null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Provider configuration types ──────────────────────
 
 export interface ProviderConfig {
@@ -104,18 +187,37 @@ export async function approveTool(
   pendingId: string,
   decision: "approve" | "reject" | "edit",
   editedArgs?: Record<string, unknown>,
+  whitelist?: boolean,
 ): Promise<ApprovalResponse> {
+  const body: Record<string, unknown> = {
+    pending_id: pendingId,
+    decision,
+    edited_args: editedArgs,
+  };
+  if (whitelist) body.whitelist = true;
   const res = await fetch(`${API_BASE}/api/approve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      pending_id: pendingId,
-      decision,
-      edited_args: editedArgs,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Approval failed: ${res.statusText}`);
   return res.json();
+}
+
+// ── Thread list ───────────────────────────────────────
+
+export interface ThreadInfo {
+  thread_id: string;
+  message_count: number;
+  updated_at: number;
+  preview: string;
+}
+
+export async function fetchThreads(): Promise<ThreadInfo[]> {
+  const res = await fetch(`${API_BASE}/api/threads`);
+  if (!res.ok) throw new Error(`Failed to fetch threads: ${res.statusText}`);
+  const data = await res.json();
+  return data.threads || [];
 }
 
 // ── Thread history ────────────────────────────────────

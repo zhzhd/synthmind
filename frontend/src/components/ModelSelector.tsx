@@ -35,8 +35,8 @@ export default function ModelSelector({ config, onChange }: Props) {
             value={config.provider}
             onChange={(e) => {
               const newProvider = e.target.value;
-              const firstModel = models.find((m) => m.provider === newProvider && m.available)?.model || "";
-              onChange({ ...config, provider: newProvider, model: firstModel });
+              const firstModel = models.find((m) => m.provider === newProvider && m.available)?.model;
+              onChange({ ...config, provider: newProvider, model: firstModel || config.model });
             }}
           >
             {providers.length > 0
@@ -70,8 +70,12 @@ export default function ModelSelector({ config, onChange }: Props) {
                     {m.model}
                   </option>
                 ))
+              : config.model
+              ? (
+                <option value={config.model}>{config.model}</option>
+              )
               : (
-                <option value={config.model}>{config.model || "Select a model"}</option>
+                <option value="">(models loading...)</option>
               )}
           </select>
         </div>

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time as _time
 import uuid
 from typing import Any
 
@@ -13,7 +15,9 @@ from core.llm import get_chat_model
 from core.state import AgentState, ModelConfig
 from core.tools import get_tools, SENSITIVE_TOOLS, get_todo_prompt
 from core.memory import format_memory_context
-from services.threads import get_history, add_messages
+from services.threads import get_history, add_messages, get_workdir
+from services.whitelist import is_whitelisted
+from services.tracing import SynthMindTracer, _append_trace as _append_trace_entry
 from services.hitl import create_pending, get_pending, resolve_pending
 from services.skills import get_active_skills_instructions
 
@@ -131,8 +135,11 @@ def check_approval(state: AgentState, config: RunnableConfig) -> dict:
     for tc in state["tool_calls"]:
         name = tc["name"]
         if name in SENSITIVE_TOOLS:
-            pid = create_pending(thread_id=tid, tool_name=name, tool_args=tc["args"], tool_call_id=tc["id"], model_config=mc_d)
-            pending_list.append({"pending_id": pid, "tool_name": name, "tool_args": tc["args"], "tool_call_id": tc["id"]})
+            if is_whitelisted(name):
+                safe_calls.append(tc)
+            else:
+                pid = create_pending(thread_id=tid, tool_name=name, tool_args=tc["args"], tool_call_id=tc["id"], model_config=mc_d)
+                pending_list.append({"pending_id": pid, "tool_name": name, "tool_args": tc["args"], "tool_call_id": tc["id"]})
         else:
             safe_calls.append(tc)
 
@@ -143,17 +150,79 @@ def check_approval(state: AgentState, config: RunnableConfig) -> dict:
 
 # ── Graph node: execute tools ──────────────────────────────────────
 
-def execute_tools(state: AgentState) -> dict:
+def _inject_workdir(fn_name: str, args: dict, workdir: str | None) -> None:
+    """Mutate *args* in place, injecting workdir where applicable."""
+    if not workdir:
+        return
+    if fn_name in ("execute_command", "python_repl"):
+        args["workdir"] = workdir
+    if fn_name in ("ls", "grep"):
+        if not args.get("path") or args.get("path") in (".", ""):
+            args["path"] = workdir
+    if fn_name in ("read_file", "write_file", "edit_file"):
+        p = args.get("path", "")
+        if p and not p.startswith("/"):
+            args["path"] = os.path.join(workdir, p)
+
+
+# ── Tool trace recording (direct, bypasses LangGraph callback propagation) ──
+
+def _record_tool_trace(
+    *,
+    tool_name: str,
+    tool_args: dict,
+    result: str,
+    thread_id: str,
+    tool_call_id: str = "",
+    latency_ms: int = 0,
+    error: str | None = None,
+) -> None:
+    """Record a tool trace entry directly."""
+    _append_trace_entry({
+        "id": tool_call_id[:12] if tool_call_id else "",
+        "thread_id": thread_id or "",
+        "type": "error" if error else "tool",
+        "model": "",
+        "name": tool_name,
+        "input_preview": str(tool_args)[:500],
+        "output_preview": str(result)[:1000],
+        "token_usage": {},
+        "latency_ms": latency_ms,
+        "timestamp": _time.time(),
+        "error": error,
+    })
+
+
+def execute_tools(state: AgentState, config: RunnableConfig) -> dict:
     tools = {t.name: t for t in get_tools()}
+    thread_id = config["configurable"].get("thread_id")
+    workdir = get_workdir(thread_id) if thread_id else None
+
     outputs = []
     for tc in state["tool_calls"]:
         fn = tools.get(tc["name"])
-        result = fn.invoke(tc["args"]) if fn else f"Unknown tool: {tc['name']}"
+        if fn is None:
+            outputs.append({"role": "tool", "content": f"Unknown tool: {tc['name']}", "tool_call_id": tc["id"]})
+            continue
+        args = dict(tc["args"])
+        _inject_workdir(fn.name, args, workdir)
+        start = _time.time()
+        error = None
         try:
-            result = fn.invoke(tc["args"]) if fn else f"Unknown tool: {tc['name']}"
+            result = fn.invoke(args)
         except Exception as e:
             result = f"Tool error: {e}"
+            error = str(e)
         outputs.append({"role": "tool", "content": str(result), "tool_call_id": tc["id"]})
+        _record_tool_trace(
+            tool_name=tc["name"],
+            tool_args=args,
+            result=result,
+            thread_id=thread_id or "",
+            tool_call_id=tc.get("id", ""),
+            latency_ms=int((_time.time() - start) * 1000),
+            error=error,
+        )
     return {"messages": outputs, "tool_outputs": outputs, "next": "agent"}
 
 
@@ -184,7 +253,11 @@ async def run_agent(message: str, model_config: ModelConfig | None = None, syste
     initial_msgs = history + [{"role": "user", "content": message}] if history else [{"role": "user", "content": message}]
 
     agent = build_agent()
-    config = {"configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": _build_system_prompt(system_prompt)}}
+    tracer = SynthMindTracer(thread_id=thread_id)
+    config = {
+        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": _build_system_prompt(system_prompt)},
+        "callbacks": [tracer],
+    }
     state = await agent.ainvoke(AgentState(messages=initial_msgs, next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
 
     pending = state.get("pending_approvals", [])
@@ -222,19 +295,35 @@ async def resume_with_approval(pending_id: str, thread_id: str, model_config: Mo
         return "Not yet resolved.", None
 
     args = pending.get("edited_args") or pending["tool_args"]
+    # Inject workdir for approved tools
+    workdir = get_workdir(thread_id) if thread_id else None
+    _inject_workdir(pending["tool_name"], args, workdir)
+
+    tracer = SynthMindTracer(thread_id=thread_id)
 
     if pending["status"] == "approved":
         # Execute the tool and pass result as a user message to avoid
         # DeepSeek reasoning_content issues with synthetic tool_call chains.
         tools = {t.name: t for t in get_tools()}
         fn = tools.get(pending["tool_name"])
+        start = _time.time()
+        error = None
         if fn:
             try:
                 result = fn.invoke(args)
             except Exception as e:
                 result = f"Tool error: {e}"
+                error = str(e)
         else:
             result = f"Unknown tool: {pending['tool_name']}"
+        _record_tool_trace(
+            tool_name=pending["tool_name"],
+            tool_args=args,
+            result=result,
+            thread_id=thread_id,
+            latency_ms=int((_time.time() - start) * 1000),
+            error=error,
+        )
         status_msg = f"[Tool '{pending['tool_name']}' was approved and executed. Result: {str(result)[:800]}]"
     elif pending["status"] == "rejected":
         status_msg = f"[The user REJECTED calling `{pending['tool_name']}` with: {args}. Skip.]"
@@ -246,7 +335,10 @@ async def resume_with_approval(pending_id: str, thread_id: str, model_config: Mo
     sp = _build_system_prompt(system_prompt)
 
     agent = build_agent()
-    config = {"configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": sp, "skip_approval": True}}
+    config = {
+        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": sp, "skip_approval": True},
+        "callbacks": [tracer],
+    }
     state = await agent.ainvoke(AgentState(messages=[{"role": "user", "content": status_msg}], next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
 
     # Save thread context
@@ -271,6 +363,7 @@ async def resume_with_approval(pending_id: str, thread_id: str, model_config: Mo
 async def resume_with_multiple_approvals(pending_ids: list[str], thread_id: str, model_config: ModelConfig | None = None, system_prompt: str | None = None) -> tuple[str, list | None]:
     mc_data = None
     results_note = []
+    tracer = SynthMindTracer(thread_id=thread_id)
 
     for pid in pending_ids:
         resolve_pending(pid, "approve")
@@ -281,15 +374,28 @@ async def resume_with_multiple_approvals(pending_ids: list[str], thread_id: str,
             mc_data = p.get("model_config", {})
 
         args = p.get("edited_args") or p["tool_args"]
+        # Inject workdir for approved tools
+        _inject_workdir(p["tool_name"], args, get_workdir(thread_id) if thread_id else None)
         tools = {t.name: t for t in get_tools()}
         fn = tools.get(p["tool_name"])
+        start = _time.time()
+        error = None
         if fn:
             try:
                 result = fn.invoke(args)
             except Exception as e:
                 result = f"Tool error: {e}"
+                error = str(e)
         else:
             result = f"Unknown tool: {p['tool_name']}"
+        _record_tool_trace(
+            tool_name=p["tool_name"],
+            tool_args=args,
+            result=result,
+            thread_id=thread_id,
+            latency_ms=int((_time.time() - start) * 1000),
+            error=error,
+        )
         results_note.append(f"[Tool '{p['tool_name']}' approved. Result: {str(result)[:800]}]")
 
     if not results_note:
@@ -302,7 +408,10 @@ async def resume_with_multiple_approvals(pending_ids: list[str], thread_id: str,
     sp = _build_system_prompt(system_prompt)
 
     agent = build_agent()
-    config = {"configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": sp, "skip_approval": True}}
+    config = {
+        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": sp, "skip_approval": True},
+        "callbacks": [tracer],
+    }
     state = await agent.ainvoke(AgentState(messages=[{"role": "user", "content": "\n".join(results_note)}], next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
 
     # Save thread context

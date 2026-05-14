@@ -10,11 +10,13 @@ interface Message {
 
 interface Props {
   modelConfig: ModelConfig;
+  threadId?: string;
+  onThreadChange?: (threadId: string) => void;
 }
 
 function ApprovalCard({ pending, onDecision, disabled }: {
   pending: PendingApproval;
-  onDecision: (decision: "approve" | "reject") => void;
+  onDecision: (decision: "approve" | "reject" | "approve-whitelist") => void;
   disabled: boolean;
 }) {
   const argsStr = JSON.stringify(pending.tool_args, null, 2);
@@ -38,6 +40,14 @@ function ApprovalCard({ pending, onDecision, disabled }: {
         </button>
         <button
           className="btn-sm"
+          style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
+          onClick={() => onDecision("approve-whitelist")}
+          disabled={disabled}
+        >
+          ✅ Approve &amp; Whitelist
+        </button>
+        <button
+          className="btn-sm"
           style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
           onClick={() => onDecision("reject")}
           disabled={disabled}
@@ -49,14 +59,21 @@ function ApprovalCard({ pending, onDecision, disabled }: {
   );
 }
 
-export default function ChatWindow({ modelConfig }: Props) {
-  const [threadId, setThreadId] = useState<string | undefined>(() => {
-    try { return localStorage.getItem("synthmind_thread_id") || undefined; } catch { return undefined; }
-  });
+export default function ChatWindow({ modelConfig, threadId: propThreadId, onThreadChange }: Props) {
+  const [threadId, setThreadId] = useState<string | undefined>(propThreadId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Sync threadId when prop changes externally (e.g. sidebar thread selection)
+  useEffect(() => {
+    if (propThreadId !== threadId) {
+      setThreadId(propThreadId);
+      setHistoryLoaded(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propThreadId]);
 
   // Load thread history on mount, or show greeting for new sessions
   useEffect(() => {
@@ -84,9 +101,6 @@ export default function ChatWindow({ modelConfig }: Props) {
   }, [threadId, historyLoaded]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Persist thread_id
-  useEffect(() => { if (threadId) localStorage.setItem("synthmind_thread_id", threadId); }, [threadId]);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -101,7 +115,9 @@ export default function ChatWindow({ modelConfig }: Props) {
 
     try {
       const res = await sendMessage(text, modelConfig, threadId);
-      setThreadId(res.thread_id);
+      if (res.thread_id !== threadId) {
+        onThreadChange?.(res.thread_id);
+      }
 
       if (res.type === "approval" && res.pending && res.pending.length > 0) {
         // Show approval cards
@@ -130,13 +146,17 @@ export default function ChatWindow({ modelConfig }: Props) {
     }
   };
 
-  const handleApproval = async (pendingId: string, decision: "approve" | "reject") => {
+  const handleApproval = async (pendingId: string, decision: "approve" | "reject" | "approve-whitelist") => {
     if (loading) return;
     setLoading(true);
 
     try {
-      const res = await approveTool(pendingId, decision);
-      setThreadId(res.thread_id);
+      const whitelist = decision === "approve-whitelist";
+      const actualDecision = whitelist ? "approve" : decision;
+      const res = await approveTool(pendingId, actualDecision, undefined, whitelist);
+      if (res.thread_id !== threadId) {
+        onThreadChange?.(res.thread_id);
+      }
 
       // Remove the approval card and show result
       setMessages((prev) => {
@@ -144,10 +164,11 @@ export default function ChatWindow({ modelConfig }: Props) {
           (m) => m.role === "approval" && m.pending?.[0]?.pending_id === pendingId,
         );
         if (idx >= 0) {
+          const label = whitelist ? "✅ Approved (whitelisted)" : (actualDecision === "approve" ? "✅ Approved" : "✕ Rejected");
           const updated = [...prev];
           updated[idx] = {
             ...updated[idx],
-            content: decision === "approve" ? "✅ Approved" : "✕ Rejected",
+            content: label,
           };
 
           // If the response includes a follow-up message

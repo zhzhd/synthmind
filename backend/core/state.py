@@ -73,6 +73,7 @@ class ApprovalRequest(BaseModel):
     pending_id: str
     decision: str = "approve"
     edited_args: dict[str, Any] | None = None
+    whitelist: bool = False
 
 
 # ── LangGraph state ────────────────────────────────────────────────
