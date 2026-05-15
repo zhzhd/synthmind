@@ -32,10 +32,12 @@ export default function SandboxPanel() {
   }, [collapsed]);
 
   return (
-    <div className="sidebar-section">
-      <div className="settings-list-header" style={{ cursor: "pointer" }} onClick={() => setCollapsed(!collapsed)}>
-        <h3>Sandbox</h3>
-        <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{collapsed ? "▶" : "▼"}</span>
+    <div className="right-panel-tab-content">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <h3 className="right-panel-tab-heading">Sandbox</h3>
+        <button className="btn-xs" onClick={() => setCollapsed(!collapsed)}>
+          {collapsed ? "Expand" : "Collapse"}
+        </button>
       </div>
 
       {!collapsed && (

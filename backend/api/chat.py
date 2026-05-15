@@ -28,7 +28,11 @@ async def chat(req: ChatRequest):
     if matched:
         model_config = ModelConfig(provider=matched["provider"], model=matched["model"], api_key=matched["api_key"], base_url=matched["base_url"], temperature=model_config.temperature, max_tokens=model_config.max_tokens)
 
-    content, thread_id, pending = await run_agent(message=req.message, model_config=model_config, system_prompt=req.system_prompt, thread_id=req.thread_id)
+    content, thread_id, pending, *extra = await run_agent(message=req.message, model_config=model_config, system_prompt=req.system_prompt, thread_id=req.thread_id)
+    reasoning = extra[0] if extra else None
     if pending:
         return {"type": "approval", "thread_id": thread_id, "pending": pending}
-    return {"type": "response", "message": content, "thread_id": thread_id}
+    resp: dict = {"type": "response", "message": content, "thread_id": thread_id}
+    if reasoning:
+        resp["reasoning_content"] = reasoning
+    return resp

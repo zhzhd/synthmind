@@ -35,6 +35,8 @@ from api.memory import router as memory_router
 from api.agents_api import router as agents_router
 from api.whitelist import router as whitelist_router
 from api.tracing import router as tracing_router
+from api.chat_stream import router as chat_stream_router
+from api.balance import router as balance_router
 
 app.include_router(chat_router)
 app.include_router(models_router)
@@ -48,3 +50,5 @@ app.include_router(memory_router)
 app.include_router(agents_router)
 app.include_router(whitelist_router)
 app.include_router(tracing_router)
+app.include_router(chat_stream_router)
+app.include_router(balance_router)

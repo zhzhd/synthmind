@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ModelConfig, PendingApproval } from "../lib/api";
-import { sendMessage, approveTool, approveAll, fetchThreadHistory } from "../lib/api";
+import { sendMessage, sendMessageStream, approveTool, approveAll, fetchThreadHistory } from "../lib/api";
 
 interface Message {
   role: "user" | "assistant" | "tool-call" | "approval";
   content: string;
+  reasoning?: string;
   pending?: PendingApproval[];
 }
 
@@ -65,6 +66,9 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streamingReasoning, setStreamingReasoning] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
 
   // Sync threadId when prop changes externally (e.g. sidebar thread selection)
   useEffect(() => {
@@ -87,7 +91,9 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
       const msgs: Message[] = [];
       for (const m of hist) {
         if (m.role === "user") msgs.push({ role: "user", content: m.content });
-        else if (m.role === "assistant") msgs.push({ role: "assistant", content: m.content });
+        else if (m.role === "assistant") {
+          msgs.push({ role: "assistant", content: m.content, reasoning: (m as any).reasoning_content || undefined });
+        }
       }
       if (msgs.length === 0) {
         msgs.push({ role: "assistant", content: "Hello! I'm SynthMind. Choose a model in the sidebar and start chatting." });
@@ -113,34 +119,87 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
+    // Try streaming; fall back to non-streaming on failure
+    const currentThreadId = threadId;
+    let newThreadId = currentThreadId;
+
+    setStreamingReasoning("");
+    setStreamingContent("");
+    setIsStreaming(true);
+
+    // Local accumulators (not affected by React batching)
+    let localReasoning = "";
+    let localContent = "";
+    let streamedOk = false;
+    try {
+      await sendMessageStream(text, modelConfig, currentThreadId, (event) => {
+        if (event.type === "reasoning") {
+          localReasoning += (event.data.content as string);
+          setStreamingReasoning(localReasoning);
+        } else if (event.type === "content") {
+          localContent += (event.data.content as string);
+          setStreamingContent(localContent);
+        } else if (event.type === "done") {
+          const d = event.data as Record<string, unknown>;
+          if (d.thread_id) newThreadId = d.thread_id as string;
+          const msgContent = (d.content as string) || localContent;
+          const msgReasoning = (d.reasoning_content as string) || localReasoning;
+          const msg: Message = { role: "assistant", content: msgContent };
+          if (msgReasoning) msg.reasoning = msgReasoning;
+          setMessages((prev) => [...prev, msg]);
+          streamedOk = true;
+        } else if (event.type === "fallback") {
+          // Tool calls detected — streaming can't execute tools,
+          // fall back to non-streaming agent flow
+          console.log("Stream fallback (tool_calls):", event.data);
+          streamedOk = false; // don't mark as streamed
+        } else if (event.type === "error") {
+          console.warn("Stream event error:", event.data.error);
+        }
+      });
+    } catch (streamErr) {
+      console.warn("Streaming failed, falling back:", streamErr);
+    } finally {
+      setIsStreaming(false);
+      setStreamingReasoning("");
+      setStreamingContent("");
+    }
+
+    if (streamedOk) {
+      if (newThreadId && newThreadId !== currentThreadId) onThreadChange?.(newThreadId);
+      setLoading(false);
+      return;
+    }
+
+    // Stream ended without done event — use what we received locally
+    if (localContent || localReasoning) {
+      const msg: Message = { role: "assistant", content: localContent || localReasoning };
+      if (localReasoning) msg.reasoning = localReasoning;
+      setMessages((prev) => [...prev, msg]);
+      if (newThreadId && newThreadId !== currentThreadId) onThreadChange?.(newThreadId);
+      setLoading(false);
+      return;
+    }
+
+    // Fallback to non-streaming
     try {
       const res = await sendMessage(text, modelConfig, threadId);
-      if (res.thread_id !== threadId) {
-        onThreadChange?.(res.thread_id);
-      }
+      if (res.thread_id !== threadId) onThreadChange?.(res.thread_id);
 
-      if (res.type === "approval" && res.pending && res.pending.length > 0) {
-        // Show approval cards
+      if (res.type === "approval" && res.pending?.length) {
         for (const p of res.pending) {
-          setMessages((prev) => [
-            ...prev,
-            { role: "approval", content: "", pending: [p] },
-          ]);
+          setMessages((prev) => [...prev, { role: "approval", content: "", pending: [p] }]);
         }
       } else if (res.type === "response" && res.message) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: res.message! },
-        ]);
+        const msg: Message = { role: "assistant", content: res.message };
+        if ((res as any).reasoning_content) msg.reasoning = (res as any).reasoning_content;
+        setMessages((prev) => [...prev, msg]);
       }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : "Failed to get response"}`,
-        },
-      ]);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `Error: ${err instanceof Error ? err.message : "Failed to get response"}`,
+      }]);
     } finally {
       setLoading(false);
     }
@@ -160,14 +219,15 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
 
       // Remove the approval card and show result
       setMessages((prev) => {
-        const idx = prev.findLastIndex(
-          (m) => m.role === "approval" && m.pending?.[0]?.pending_id === pendingId,
+        const idx = [...prev].reverse().findIndex(
+          (m: Message) => m.role === "approval" && m.pending?.[0]?.pending_id === pendingId,
         );
-        if (idx >= 0) {
+        const actualIdx = idx >= 0 ? prev.length - 1 - idx : -1;
+        if (actualIdx >= 0) {
           const label = whitelist ? "✅ Approved (whitelisted)" : (actualDecision === "approve" ? "✅ Approved" : "✕ Rejected");
           const updated = [...prev];
-          updated[idx] = {
-            ...updated[idx],
+          updated[actualIdx] = {
+            ...updated[actualIdx],
             content: label,
           };
 
@@ -262,8 +322,34 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
         </div>
       );
     }
+    if (msg.role === "assistant" && msg.reasoning) {
+      return (
+        <div key={i} className={`message assistant`}>
+          <ThinkingBlock reasoning={msg.reasoning} />
+          {msg.content && <div style={{ marginTop: 8 }}>{msg.content}</div>}
+          {!msg.content && <div style={{ marginTop: 8, color: "var(--text-dim)", fontStyle: "italic" }}>{msg.reasoning}</div>}
+        </div>
+      );
+    }
     return <div key={i} className={`message ${msg.role}`}>{msg.content}</div>;
   };
+
+function ThinkingBlock({ reasoning }: { reasoning: string }) {
+  const [collapsed, setCollapsed] = useState(true);
+
+  return (
+    <div className="thinking-block">
+      <button className="thinking-toggle" onClick={() => setCollapsed(!collapsed)}>
+        <span className="thinking-icon">{collapsed ? "▶" : "▼"}</span>
+        <span className="thinking-label">Thought Process</span>
+        <span className="thinking-length">{reasoning.length} characters</span>
+      </button>
+      {!collapsed && (
+        <div className="thinking-content">{reasoning}</div>
+      )}
+    </div>
+  );
+}
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -296,7 +382,24 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
           }
           return renderMessage(msg, i);
         })}
-        {loading && (
+        {isStreaming && (
+          <div className={`message assistant streaming ${streamingContent ? "" : "thinking"}`}>
+            <div className="thinking-block streaming-thinking" style={{ border: "1px solid var(--accent-blue)", background: "var(--surface)" }}>
+              <div className="thinking-toggle" style={{ cursor: "default", color: "var(--accent-blue)" }}>
+                <span className="thinking-icon">▼</span>
+                <span className="thinking-label">Thinking</span>
+                <span className="thinking-length">{streamingReasoning.length} chars</span>
+              </div>
+              <div className="thinking-content" style={{ maxHeight: 300, overflowY: "auto" }}>
+                {streamingReasoning || "..."}
+              </div>
+            </div>
+            {streamingContent ? (
+              <div style={{ marginTop: 8, padding: "4px 0" }}>{streamingContent}</div>
+            ) : null}
+          </div>
+        )}
+        {!isStreaming && loading && (
           <div className="message assistant" style={{ opacity: 0.6 }}>
             Thinking...
           </div>

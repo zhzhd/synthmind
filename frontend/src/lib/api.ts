@@ -13,11 +13,14 @@ export interface ModelConfig {
   max_tokens: number;
   api_key?: string;
   base_url?: string;
+  reasoning_effort?: string;
 }
 
 export interface ChatResponse {
+  type: "response";
   message: string;
   thread_id: string;
+  reasoning_content?: string;
 }
 
 // ── Tracing / Observability ──────────────────────────
@@ -153,6 +156,83 @@ export async function sendMessage(
   return res.json();
 }
 
+// ── Balance ──────────────────────────────────────────
+
+export interface BalanceInfo {
+  currency: string;
+  total_balance: string;
+  is_available: boolean;
+}
+
+export async function fetchBalance(): Promise<BalanceInfo | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/balance`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.balance || null;
+  } catch {
+    return null;
+  }
+}
+
+export type StreamEventType = "reasoning" | "content" | "done" | "error" | "fallback";
+
+export interface StreamEvent {
+  type: StreamEventType;
+  data: Record<string, unknown>;
+}
+
+/** Send a streaming chat request and invoke ``onEvent`` for each SSE event. */
+export async function sendMessageStream(
+  message: string,
+  modelConfig: ModelConfig,
+  threadId: string | undefined,
+  onEvent: (event: StreamEvent) => void,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      llm_config: modelConfig,
+      thread_id: threadId,
+    }),
+  });
+  if (!res.ok) throw new Error(`Stream request failed: ${res.statusText}`);
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE events from buffer
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || ""; // keep incomplete line
+
+    let eventType = "";
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        eventType = line.slice(7).trim();
+      } else if (line.startsWith("data: ")) {
+        const dataStr = line.slice(6);
+        if (eventType && dataStr) {
+          try {
+            onEvent({ type: eventType as StreamEventType, data: JSON.parse(dataStr) });
+          } catch {
+            // ignore parse errors
+          }
+        }
+        eventType = "";
+      }
+    }
+  }
+}
+
 // ── Approval (Human-in-the-loop) ──────────────────────
 
 export interface PendingApproval {
@@ -168,6 +248,7 @@ export interface ApprovalResponse {
   message?: string;
   thread_id: string;
   pending?: PendingApproval[];
+  reasoning_content?: string;
 }
 
 export async function approveAll(
@@ -225,6 +306,7 @@ export async function fetchThreads(): Promise<ThreadInfo[]> {
 export interface ThreadMessage {
   role: string;
   content: string;
+  reasoning_content?: string;
 }
 
 export async function fetchThreadHistory(threadId: string): Promise<ThreadMessage[]> {

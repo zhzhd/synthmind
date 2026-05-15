@@ -86,7 +86,8 @@ def call_model(state: AgentState, config: RunnableConfig) -> dict:
             msgs.append(HumanMessage(content=m["content"]))
         elif m["role"] == "assistant":
             tc = m.get("tool_calls")
-            if tc and executed_ids:
+            # Filter out tool_calls without matching tool responses
+            if tc:
                 tc = [t for t in tc if t.get("id") in executed_ids]
             ai_kw: dict = {"content": m.get("content", "")}
             if tc:
@@ -274,15 +275,19 @@ async def run_agent(message: str, model_config: ModelConfig | None = None, syste
         if d.get("role") in ("assistant",):
             content = str(d.get("content", ""))[:500]
             if content:
-                new_msgs.append({"role": "assistant", "content": content})
+                msg = {"role": "assistant", "content": content}
+                rc = d.get("reasoning_content")
+                if rc:
+                    msg["reasoning_content"] = str(rc)[:2000]
+                new_msgs.append(msg)
     if len(new_msgs) > 1:
         add_messages(thread_id, new_msgs)
 
     for m in reversed(state["messages"]):
         d = m if isinstance(m, dict) else {}
         if d.get("role") == "assistant":
-            return d.get("content", ""), thread_id, None
-    return "No response.", thread_id, None
+            return d.get("content", ""), thread_id, None, d.get("reasoning_content")
+    return "No response.", thread_id, None, None
 
 
 # ── Resume after approval ─────────────────────────────────────────
@@ -346,7 +351,11 @@ async def resume_with_approval(pending_id: str, thread_id: str, model_config: Mo
     for m in state["messages"]:
         d = m if isinstance(m, dict) else {}
         if d.get("role") in ("assistant",):
-            ctx_msgs.append({"role": d["role"], "content": str(d.get("content", ""))[:500]})
+            m = {"role": d["role"], "content": str(d.get("content", ""))[:500]}
+            rc = d.get("reasoning_content")
+            if rc:
+                m["reasoning_content"] = str(rc)[:2000]
+            ctx_msgs.append(m)
     if ctx_msgs:
         add_messages(thread_id, ctx_msgs)
 
@@ -419,7 +428,11 @@ async def resume_with_multiple_approvals(pending_ids: list[str], thread_id: str,
     for m in state["messages"]:
         d = m if isinstance(m, dict) else {}
         if d.get("role") in ("assistant",):
-            ctx_msgs.append({"role": d["role"], "content": str(d.get("content", ""))[:500]})
+            m = {"role": d["role"], "content": str(d.get("content", ""))[:500]}
+            rc = d.get("reasoning_content")
+            if rc:
+                m["reasoning_content"] = str(rc)[:2000]
+            ctx_msgs.append(m)
     if ctx_msgs:
         add_messages(thread_id, ctx_msgs)
 
