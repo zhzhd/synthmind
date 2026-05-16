@@ -129,7 +129,7 @@ export default function TracesTab() {
                       <span className="trace-detail-label">Tokens</span>
                       <div className="trace-tokens">
                         {Object.entries(t.token_usage).map(([k, v]) => (
-                          <span key={k} className="trace-token-badge">{k}: {v}</span>
+                          <span key={k} className="trace-token-badge">{k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
                         ))}
                       </div>
                     </div>

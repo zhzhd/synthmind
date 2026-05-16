@@ -5,6 +5,7 @@ import {
   fetchSkills, fetchSkillDetail, createSkill, deleteSkill, toggleSkill, installSkillFromUrl,
   fetchMemories, deleteMemory, saveMemory,
   fetchWhitelist, removeFromWhitelist,
+  fetchFeishuConfig, updateFeishuConfig,
 } from "../lib/api";
 import TracesTab from "./TracesTab";
 
@@ -21,7 +22,7 @@ const EMPTY_PROVIDER_FORM = { name: "", provider: "deepseek" as const, model: ""
 type ProviderForm = typeof EMPTY_PROVIDER_FORM;
 
 export default function SettingsPanel({ open, onClose }: Props) {
-  const [tab, setTab] = useState<"providers" | "skills" | "memory" | "whitelist" | "traces">("providers");
+  const [tab, setTab] = useState<"providers" | "feishu" | "skills" | "memory" | "whitelist" | "traces">("providers");
   if (!open) return null;
 
   return (
@@ -32,14 +33,80 @@ export default function SettingsPanel({ open, onClose }: Props) {
             <button className={`tab-btn ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")}>Providers</button>
             <button className={`tab-btn ${tab === "skills" ? "active" : ""}`} onClick={() => setTab("skills")}>Skills</button>
             <button className={`tab-btn ${tab === "memory" ? "active" : ""}`} onClick={() => setTab("memory")}>Memory</button>
+            <button className={`tab-btn ${tab === "feishu" ? "active" : ""}`} onClick={() => setTab("feishu")}>Feishu</button>
             <button className={`tab-btn ${tab === "whitelist" ? "active" : ""}`} onClick={() => setTab("whitelist")}>Whitelist</button>
             <button className={`tab-btn ${tab === "traces" ? "active" : ""}`} onClick={() => setTab("traces")}>Traces</button>
           </div>
           <button className="settings-close" onClick={onClose}>✕</button>
         </div>
 
-        {tab === "providers" ? <ProviderTab /> : tab === "skills" ? <SkillsTab /> : tab === "memory" ? <MemoryTab /> : tab === "whitelist" ? <WhitelistTab /> : <TracesTab />}
+        {tab === "providers" ? <ProviderTab /> : tab === "feishu" ? <FeishuTab /> : tab === "skills" ? <SkillsTab /> : tab === "memory" ? <MemoryTab /> : tab === "whitelist" ? <WhitelistTab /> : <TracesTab />}
       </div>
+    </div>
+  );
+}
+
+/* ── Feishu tab ────────────────────────────────────────────────── */
+
+function FeishuTab() {
+  const [cfg, setCfg] = useState({ app_id: "", app_secret: "", bot_name: "" });
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  useEffect(() => {
+    fetchFeishuConfig().then((c) => {
+      setCfg({ app_id: c.app_id, app_secret: c.has_secret ? "***" : "", bot_name: c.bot_name });
+      setLoaded(true);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setResult(null);
+    try {
+      await updateFeishuConfig(cfg);
+      setResult({ ok: true, msg: "Configuration saved! Restart the backend to apply changes." });
+    } catch (e: any) {
+      setResult({ ok: false, msg: `Save failed: ${e.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="settings-body" style={{ flexDirection: "column" }}>
+      <h3 style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)", marginBottom: 12 }}>
+        Feishu Bot Configuration
+      </h3>
+      {!loaded && <p style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading...</p>}
+      {loaded && (
+        <>
+          <label>App ID</label>
+          <input type="text" value={cfg.app_id} onChange={(e) => setCfg({ ...cfg, app_id: e.target.value })} placeholder="cli_xxxxxxxxxxxxx" />
+          <label>App Secret</label>
+          <input type="password" value={cfg.app_secret} onChange={(e) => setCfg({ ...cfg, app_secret: e.target.value })} placeholder="Enter your app secret" />
+          <label>Bot Name <span className="label-hint">(for @mention in groups)</span></label>
+          <input type="text" value={cfg.bot_name} onChange={(e) => setCfg({ ...cfg, bot_name: e.target.value })} placeholder="Optional" />
+          {result && (
+            <div className={`test-result ${result.ok ? "success" : "error"}`} style={{ marginTop: 10 }}>
+              {result.msg}
+            </div>
+          )}
+          <div className="settings-form-actions" style={{ marginTop: 14 }}>
+            <button className="btn-sm btn-primary" onClick={handleSave} disabled={saving || !cfg.app_id || !cfg.app_secret}>
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 12, lineHeight: 1.5 }}>
+            After saving, restart the backend to apply changes. Make sure your Feishu app has:
+            <br />- 机器人 capability enabled
+            <br />- im:message permission
+            <br />- im.message.receive_v1 event subscribed
+            <br />- WebSocket mode (长连接)
+          </p>
+        </>
+      )}
     </div>
   );
 }

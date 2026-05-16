@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ModelConfig, PendingApproval } from "../lib/api";
-import { sendMessage, sendMessageStream, approveTool, approveAll, fetchThreadHistory } from "../lib/api";
+import { sendMessage, approveTool, approveAll, fetchThreadHistory } from "../lib/api";
 
 interface Message {
   role: "user" | "assistant" | "tool-call" | "approval";
   content: string;
   reasoning?: string;
+  token_usage?: { input_tokens: number; output_tokens: number; total_tokens: number };
   pending?: PendingApproval[];
 }
 
@@ -15,47 +16,78 @@ interface Props {
   onThreadChange?: (threadId: string) => void;
 }
 
-function ApprovalCard({ pending, onDecision, disabled }: {
-  pending: PendingApproval;
-  onDecision: (decision: "approve" | "reject" | "approve-whitelist") => void;
+function ApprovalCard({ pending, onDecision, allDecisions, onApproveAll, onRejectAll, disabled }: {
+  pending: PendingApproval[];
+  onDecision: (pendingId: string, decision: "approve" | "reject" | "approve-whitelist") => void;
+  allDecisions?: (decision: "approve" | "reject") => void;
+  onApproveAll?: () => void;
+  onRejectAll?: () => void;
   disabled: boolean;
 }) {
-  const argsStr = JSON.stringify(pending.tool_args, null, 2);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const current = pending[currentIndex];
+  const argsStr = current ? JSON.stringify(current.tool_args, null, 2) : "";
+
+  if (pending.length === 0) return null;
 
   return (
     <div className="approval-card">
-      <div className="approval-header">🔒 Tool requires approval</div>
-      <div className="approval-tool">
-        <strong>{pending.tool_name}</strong>
+      <div className="approval-header">
+        🔒 {pending.length > 1 ? `Tools require approval (${currentIndex + 1}/${pending.length})` : "Tool requires approval"}
       </div>
-      {argsStr !== "{}" && (
-        <pre className="approval-args">{argsStr}</pre>
+
+      {/* Navigation for multiple tools */}
+      {pending.length > 1 && (
+        <div className="approval-nav">
+          <button className="btn-xs" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>◀</button>
+          <span className="approval-nav-dots">
+            {pending.map((_, i) => (
+              <span key={i} className={`approval-nav-dot ${i === currentIndex ? "active" : ""}`}
+                onClick={() => setCurrentIndex(i)} />
+            ))}
+          </span>
+          <button className="btn-xs" onClick={() => setCurrentIndex(Math.min(pending.length - 1, currentIndex + 1))} disabled={currentIndex >= pending.length - 1}>▶</button>
+        </div>
       )}
-      <div className="approval-actions">
-        <button
-          className="btn-sm btn-primary"
-          onClick={() => onDecision("approve")}
-          disabled={disabled}
-        >
-          ✅ Approve
-        </button>
-        <button
-          className="btn-sm"
-          style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
-          onClick={() => onDecision("approve-whitelist")}
-          disabled={disabled}
-        >
-          ✅ Approve &amp; Whitelist
-        </button>
-        <button
-          className="btn-sm"
-          style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
-          onClick={() => onDecision("reject")}
-          disabled={disabled}
-        >
-          ✕ Reject
-        </button>
-      </div>
+
+      {current && (
+        <>
+          <div className="approval-tool">
+            <strong>{current.tool_name}</strong>
+          </div>
+          {argsStr !== "{}" && (
+            <pre className="approval-args">{argsStr}</pre>
+          )}
+          <div className="approval-actions">
+            <button className="btn-sm btn-primary" onClick={() => onDecision(current.pending_id, "approve")} disabled={disabled}>
+              ✅ {pending.length > 1 ? `Approve (${currentIndex + 1})` : "Approve"}
+            </button>
+            <button className="btn-sm" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
+              onClick={() => onDecision(current.pending_id, "approve-whitelist")} disabled={disabled}>
+              ✅ Whitelist
+            </button>
+            <button className="btn-sm" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+              onClick={() => onDecision(current.pending_id, "reject")} disabled={disabled}>
+              ✕ Reject
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Batch actions */}
+      {pending.length > 1 && (
+        <div className="approval-batch" style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+          <div className="approval-actions">
+            <button className="btn-sm btn-primary" onClick={onApproveAll} disabled={disabled}>
+              ✅ Approve All ({pending.length})
+            </button>
+            <button className="btn-sm" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+              onClick={onRejectAll} disabled={disabled}>
+              ✕ Reject All
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -66,9 +98,6 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [streamingReasoning, setStreamingReasoning] = useState("");
-  const [streamingContent, setStreamingContent] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
 
   // Sync threadId when prop changes externally (e.g. sidebar thread selection)
   useEffect(() => {
@@ -119,80 +148,17 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
-    // Try streaming; fall back to non-streaming on failure
-    const currentThreadId = threadId;
-    let newThreadId = currentThreadId;
-
-    setStreamingReasoning("");
-    setStreamingContent("");
-    setIsStreaming(true);
-
-    // Local accumulators (not affected by React batching)
-    let localReasoning = "";
-    let localContent = "";
-    let streamedOk = false;
     try {
-      await sendMessageStream(text, modelConfig, currentThreadId, (event) => {
-        if (event.type === "reasoning") {
-          localReasoning += (event.data.content as string);
-          setStreamingReasoning(localReasoning);
-        } else if (event.type === "content") {
-          localContent += (event.data.content as string);
-          setStreamingContent(localContent);
-        } else if (event.type === "done") {
-          const d = event.data as Record<string, unknown>;
-          if (d.thread_id) newThreadId = d.thread_id as string;
-          const msgContent = (d.content as string) || localContent;
-          const msgReasoning = (d.reasoning_content as string) || localReasoning;
-          const msg: Message = { role: "assistant", content: msgContent };
-          if (msgReasoning) msg.reasoning = msgReasoning;
-          setMessages((prev) => [...prev, msg]);
-          streamedOk = true;
-        } else if (event.type === "fallback") {
-          // Tool calls detected — streaming can't execute tools,
-          // fall back to non-streaming agent flow
-          console.log("Stream fallback (tool_calls):", event.data);
-          streamedOk = false; // don't mark as streamed
-        } else if (event.type === "error") {
-          console.warn("Stream event error:", event.data.error);
-        }
-      });
-    } catch (streamErr) {
-      console.warn("Streaming failed, falling back:", streamErr);
-    } finally {
-      setIsStreaming(false);
-      setStreamingReasoning("");
-      setStreamingContent("");
-    }
-
-    if (streamedOk) {
-      if (newThreadId && newThreadId !== currentThreadId) onThreadChange?.(newThreadId);
-      setLoading(false);
-      return;
-    }
-
-    // Stream ended without done event — use what we received locally
-    if (localContent || localReasoning) {
-      const msg: Message = { role: "assistant", content: localContent || localReasoning };
-      if (localReasoning) msg.reasoning = localReasoning;
-      setMessages((prev) => [...prev, msg]);
-      if (newThreadId && newThreadId !== currentThreadId) onThreadChange?.(newThreadId);
-      setLoading(false);
-      return;
-    }
-
-    // Fallback to non-streaming
-    try {
+      // Use non-streaming LangGraph agent (handles tool calls, records traces)
       const res = await sendMessage(text, modelConfig, threadId);
       if (res.thread_id !== threadId) onThreadChange?.(res.thread_id);
 
       if (res.type === "approval" && res.pending?.length) {
-        for (const p of res.pending) {
-          setMessages((prev) => [...prev, { role: "approval", content: "", pending: [p] }]);
-        }
+        setMessages((prev) => [...prev, { role: "approval", content: "", pending: res.pending! }]);
       } else if (res.type === "response" && res.message) {
         const msg: Message = { role: "assistant", content: res.message };
         if ((res as any).reasoning_content) msg.reasoning = (res as any).reasoning_content;
+        if ((res as any).token_usage) msg.token_usage = (res as any).token_usage;
         setMessages((prev) => [...prev, msg]);
       }
     } catch (err) {
@@ -217,36 +183,32 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
         onThreadChange?.(res.thread_id);
       }
 
-      // Remove the approval card and show result
+      // Remove the resolved pending item from the card
       setMessages((prev) => {
-        const idx = [...prev].reverse().findIndex(
-          (m: Message) => m.role === "approval" && m.pending?.[0]?.pending_id === pendingId,
-        );
-        const actualIdx = idx >= 0 ? prev.length - 1 - idx : -1;
-        if (actualIdx >= 0) {
-          const label = whitelist ? "✅ Approved (whitelisted)" : (actualDecision === "approve" ? "✅ Approved" : "✕ Rejected");
-          const updated = [...prev];
-          updated[actualIdx] = {
-            ...updated[actualIdx],
-            content: label,
-          };
-
-          // If the response includes a follow-up message
-          if (res.type === "response" && res.message) {
-            updated.push({ role: "assistant", content: res.message! });
-          }
-          // If another approval is needed
-          if (res.type === "approval" && res.pending) {
-            for (const p of res.pending) {
-              updated.push({ role: "approval", content: "", pending: [p] });
+        const updated = [...prev];
+        for (let i = 0; i < updated.length; i++) {
+          const m = updated[i];
+          if (m.role === "approval" && m.pending) {
+            const pIdx = m.pending.findIndex((p) => p.pending_id === pendingId);
+            if (pIdx >= 0) {
+              const newPending = m.pending.filter((_, pi) => pi !== pIdx);
+              if (newPending.length === 0 && m.content === "") {
+                // All resolved — mark as done
+                updated[i] = { ...m, content: "✅ Approved", pending: [] };
+              } else {
+                updated[i] = { ...m, pending: newPending };
+              }
+              break;
             }
           }
-          return updated;
         }
-        // Fallback: just append
-        const updated = [...prev];
+
+        // Follow-up response
         if (res.type === "response" && res.message) {
           updated.push({ role: "assistant", content: res.message! });
+        }
+        if (res.type === "approval" && res.pending?.length) {
+          updated.push({ role: "approval", content: "", pending: res.pending });
         }
         return updated;
       });
@@ -263,59 +225,93 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
     }
   };
 
+  const getUnresolvedPendingIds = () => {
+    const ids: string[] = [];
+    for (const m of messages) {
+      if (m.role === "approval" && m.content === "" && m.pending) {
+        for (const p of m.pending) {
+          if (p.pending_id) ids.push(p.pending_id);
+        }
+      }
+    }
+    return ids;
+  };
+
   const handleApproveAll = async () => {
     if (loading || !threadId) return;
     setLoading(true);
 
-    // Collect all unresolved pending IDs
-    const unresolved = messages.filter(
-      (m) => m.role === "approval" && m.content === "" && m.pending?.[0],
-    );
-    const pendingIds = unresolved.map((m) => m.pending![0].pending_id);
-
-    if (pendingIds.length === 0) return;
+    const pendingIds = getUnresolvedPendingIds();
+    if (pendingIds.length === 0) { setLoading(false); return; }
 
     try {
       const res = await approveAll(pendingIds, threadId);
 
-      // Mark all as approved
+      // Mark all approval messages as approved
       setMessages((prev) => {
         const updated = [...prev];
         for (const m of updated) {
-          if (m.role === "approval" && m.content === "" && m.pending?.[0]) {
+          if (m.role === "approval" && m.content === "") {
             m.content = "✅ Approved";
           }
         }
         if (res.type === "response" && res.message) {
           updated.push({ role: "assistant", content: res.message! });
         }
-        if (res.type === "approval" && res.pending) {
-          for (const p of res.pending) {
-            updated.push({ role: "approval", content: "", pending: [p] });
+        if (res.type === "approval" && res.pending?.length) {
+          updated.push({ role: "approval", content: "", pending: res.pending });
+        }
+        return updated;
+      });
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `Approve all error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectAll = async () => {
+    if (loading || !threadId) return;
+    setLoading(true);
+
+    const pendingIds = getUnresolvedPendingIds();
+    // Reject each individually via the approve endpoint with decision="reject"
+    try {
+      for (const pid of pendingIds) {
+        await approveTool(pid, "reject");
+      }
+      // Mark all as rejected
+      setMessages((prev) => {
+        const updated = [...prev];
+        for (const m of updated) {
+          if (m.role === "approval" && m.content === "") {
+            m.content = "✕ Rejected";
           }
         }
         return updated;
       });
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Approve all error: ${err instanceof Error ? err.message : "Unknown error"}`,
-        },
-      ]);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `Reject all error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
   const renderMessage = (msg: Message, i: number) => {
-    if (msg.role === "approval" && msg.pending?.[0]) {
+    if (msg.role === "approval" && msg.pending?.length) {
       return (
         <div key={i} className="message approval-wrapper">
           <ApprovalCard
-            pending={msg.pending[0]}
-            onDecision={(decision) => handleApproval(msg.pending![0].pending_id, decision)}
+            pending={msg.pending}
+            onDecision={(pendingId, decision) => handleApproval(pendingId, decision)}
+            onApproveAll={() => handleApproveAll()}
+            onRejectAll={() => handleRejectAll()}
             disabled={loading || msg.content !== ""}
           />
           {msg.content && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{msg.content}</div>}
@@ -328,11 +324,30 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
           <ThinkingBlock reasoning={msg.reasoning} />
           {msg.content && <div style={{ marginTop: 8 }}>{msg.content}</div>}
           {!msg.content && <div style={{ marginTop: 8, color: "var(--text-dim)", fontStyle: "italic" }}>{msg.reasoning}</div>}
+          {msg.token_usage && <TokenBadge usage={msg.token_usage} />}
+        </div>
+      );
+    }
+    if (msg.role === "assistant") {
+      return (
+        <div key={i} className={`message assistant`}>
+          <div>{msg.content}</div>
+          {msg.token_usage && <TokenBadge usage={msg.token_usage} />}
         </div>
       );
     }
     return <div key={i} className={`message ${msg.role}`}>{msg.content}</div>;
   };
+
+function TokenBadge({ usage }: { usage: { input_tokens: number; output_tokens: number; total_tokens: number } }) {
+  if (!usage || !usage.total_tokens) return null;
+  return (
+    <div className="token-badge" title={`Input: ${usage.input_tokens}, Output: ${usage.output_tokens}`}>
+      <span className="token-badge-icon">⚡</span>
+      <span className="token-badge-text">{usage.total_tokens} tokens</span>
+    </div>
+  );
+}
 
 function ThinkingBlock({ reasoning }: { reasoning: string }) {
   const [collapsed, setCollapsed] = useState(true);
@@ -382,24 +397,7 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
           }
           return renderMessage(msg, i);
         })}
-        {isStreaming && (
-          <div className={`message assistant streaming ${streamingContent ? "" : "thinking"}`}>
-            <div className="thinking-block streaming-thinking" style={{ border: "1px solid var(--accent-blue)", background: "var(--surface)" }}>
-              <div className="thinking-toggle" style={{ cursor: "default", color: "var(--accent-blue)" }}>
-                <span className="thinking-icon">▼</span>
-                <span className="thinking-label">Thinking</span>
-                <span className="thinking-length">{streamingReasoning.length} chars</span>
-              </div>
-              <div className="thinking-content" style={{ maxHeight: 300, overflowY: "auto" }}>
-                {streamingReasoning || "..."}
-              </div>
-            </div>
-            {streamingContent ? (
-              <div style={{ marginTop: 8, padding: "4px 0" }}>{streamingContent}</div>
-            ) : null}
-          </div>
-        )}
-        {!isStreaming && loading && (
+        {loading && (
           <div className="message assistant" style={{ opacity: 0.6 }}>
             Thinking...
           </div>

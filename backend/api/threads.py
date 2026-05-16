@@ -2,18 +2,27 @@
 
 import subprocess
 import sys
+import uuid
 
 from fastapi import APIRouter, HTTPException
 
 from pydantic import BaseModel
 
-from services.threads import get_history, list_threads, get_workdir, set_workdir
+from services.threads import get_history, list_threads, get_workdir, set_workdir, add_messages
 
 
 class WorkdirRequest(BaseModel):
     workdir: str
 
 router = APIRouter()
+
+
+@router.post("/api/threads")
+async def create_empty_thread():
+    """Create a new empty thread and return its ID."""
+    thread_id = uuid.uuid4().hex[:12]
+    add_messages(thread_id, [])
+    return {"thread_id": thread_id, "message_count": 0, "preview": "New conversation"}
 
 
 @router.post("/api/pick-folder")

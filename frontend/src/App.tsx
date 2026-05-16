@@ -148,7 +148,7 @@ export default function App() {
           <>
             <div className="right-panel-resize-handle" onMouseDown={handleRightResizeMouseDown} />
             <div className="right-panel-wrapper" style={{ width: rightPanelWidth }}>
-              <RightPanel />
+              <RightPanel activeThreadId={activeThreadId} />
             </div>
           </>
         )}

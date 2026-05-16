@@ -147,6 +147,7 @@ async def chat_stream(req: Request):
         full_content = ""
         full_reasoning = ""
         collected_tool_calls: list[dict] = []
+        token_usage: dict[str, int] = {}
 
         try:
             # llm.stream() yields AIMessageChunk directly
@@ -161,6 +162,10 @@ async def chat_stream(req: Request):
                 if msg_chunk.content:
                     full_content += msg_chunk.content
                     yield f"event: content\ndata: {json.dumps({'content': msg_chunk.content})}\n\n"
+
+                # Token usage
+                if msg_chunk.usage_metadata:
+                    token_usage = dict(msg_chunk.usage_metadata)
 
                 # Tool calls (final accumulated)
                 if msg_chunk.tool_calls:
@@ -192,6 +197,7 @@ async def chat_stream(req: Request):
             "content": display_content,
             "reasoning_content": full_reasoning or None,
             "thread_id": thread_id,
+            "token_usage": token_usage or None,
         }
         yield f"event: done\ndata: {json.dumps(result)}\n\n"
 

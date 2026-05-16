@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchThreads, fetchThreadWorkdir, setThreadWorkdir, pickFolder } from "../lib/api";
+import { fetchThreads, fetchThreadWorkdir, setThreadWorkdir, pickFolder, createThread } from "../lib/api";
 import type { ThreadInfo } from "../lib/api";
 
 interface Props {
@@ -62,8 +62,22 @@ export default function ThreadListPanel({ currentThreadId, onSelectThread }: Pro
       .catch(() => setWorkdir(null));
   }, [currentThreadId]);
 
-  const handleNew = () => {
-    onSelectThread(undefined);
+  const handleNew = async () => {
+    // Check if there's already an empty thread
+    const empty = threads.find((t) => t.message_count === 0);
+    if (empty) {
+      onSelectThread(empty.thread_id);
+      return;
+    }
+    // Create a new empty thread
+    try {
+      const thread = await createThread();
+      setThreads((prev) => [thread, ...prev]);
+      onSelectThread(thread.thread_id);
+    } catch (e) {
+      console.error("Failed to create thread", e);
+      onSelectThread(undefined);
+    }
   };
 
   const handleBrowseFolder = async () => {

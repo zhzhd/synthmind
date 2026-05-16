@@ -24,7 +24,26 @@ from services.skills import get_active_skills_instructions
 
 def _build_system_prompt(user_prompt: str | None = None) -> str:
     """Build the full system prompt including skills, memory, and todo instructions."""
-    base = user_prompt or "You are a helpful AI assistant."
+    base = user_prompt or "You are SynthMind, a capable AI assistant with access to tools."
+
+    # ── Core behavior ──
+    core_rules = (
+        "\n\n## Core Rules"
+        "\n- You have access to tools — use them proactively when the user asks you to DO something."
+        "\n- Think step by step: analyze what's needed, choose the right tool, call it, then respond based on the result."
+        "\n- When multiple independent operations are needed, batch tool calls in a single response for parallel execution."
+        "\n- If a tool returns an error, diagnose and retry with corrected parameters rather than giving up."
+        "\n- Do NOT pretend to execute actions — actually call the tool and wait for its result."
+    )
+
+    # ── Output style ──
+    style_guide = (
+        "\n\n## Output Style"
+        "\n- Be concise and direct. Avoid preamble like 'I'll do X' — just do it."
+        "\n- After completing a task, briefly confirm what was done (1-2 sentences max)."
+        "\n- Use Chinese for responses when the user writes in Chinese."
+        "\n- Use markdown formatting for clarity (lists, code blocks, tables)."
+    )
 
     # Memory usage instructions
     memory_guide = (
@@ -38,10 +57,7 @@ def _build_system_prompt(user_prompt: str | None = None) -> str:
         "\nYou can also use `recall_memories` to proactively look up past learnings."
     )
 
-    return base + memory_guide + get_active_skills_instructions() + get_todo_prompt()
-from services.hitl import create_pending, get_pending, resolve_pending
-from services.skills import get_active_skills_instructions
-from core.memory import format_memory_context
+    return base + core_rules + style_guide + memory_guide + get_active_skills_instructions() + get_todo_prompt()
 
 
 # ── Graph node: call LLM ───────────────────────────────────────────
@@ -103,6 +119,12 @@ def call_model(state: AgentState, config: RunnableConfig) -> dict:
             msgs.append(ToolMessage(content=m["content"], tool_call_id=m["tool_call_id"]))
 
     response = llm.invoke(msgs, config)
+    print(f"[AGENT] call_model: LLM invoked, response type={type(response).__name__}", flush=True)
+    print(f"[AGENT] tool_calls: {len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0}", flush=True)
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        for tc in response.tool_calls:
+            print(f"[AGENT]   tool: {tc['name']} args={str(tc.get('args',{}))[:100]}", flush=True)
+    print(f"[AGENT] content: {str(response.content)[:100]}...", flush=True)
     tool_calls = []
     if hasattr(response, "tool_calls") and response.tool_calls:
         tool_calls = [{"name": tc["name"], "args": tc["args"], "id": tc["id"]} for tc in response.tool_calls]
@@ -122,6 +144,7 @@ def call_model(state: AgentState, config: RunnableConfig) -> dict:
 
 def check_approval(state: AgentState, config: RunnableConfig) -> dict:
     if config["configurable"].get("skip_approval", False):
+        print(f"[AGENT] check_approval: skip=True, passing {len(state['tool_calls'])} tool_calls through", flush=True)
         return {"tool_calls": state["tool_calls"], "pending_approvals": [], "next": "tools"}
 
     pending_list, safe_calls = [], []
@@ -133,17 +156,22 @@ def check_approval(state: AgentState, config: RunnableConfig) -> dict:
     if hasattr(mc, "base_url") and mc.base_url:
         mc_d["base_url"] = mc.base_url
 
+    print(f"[AGENT] check_approval: {len(state['tool_calls'])} tool_calls to process", flush=True)
     for tc in state["tool_calls"]:
         name = tc["name"]
         if name in SENSITIVE_TOOLS:
             if is_whitelisted(name):
+                print(f"[AGENT]   {name}: whitelisted → safe", flush=True)
                 safe_calls.append(tc)
             else:
                 pid = create_pending(thread_id=tid, tool_name=name, tool_args=tc["args"], tool_call_id=tc["id"], model_config=mc_d)
                 pending_list.append({"pending_id": pid, "tool_name": name, "tool_args": tc["args"], "tool_call_id": tc["id"]})
+                print(f"[AGENT]   {name}: needs approval → pending {pid}", flush=True)
         else:
+            print(f"[AGENT]   {name}: not sensitive → safe", flush=True)
             safe_calls.append(tc)
 
+    print(f"[AGENT] check_approval: {len(safe_calls)} safe, {len(pending_list)} pending, next={'tools' if safe_calls else END}", flush=True)
     if pending_list:
         return {"tool_calls": safe_calls, "pending_approvals": pending_list, "next": "tools" if safe_calls else END}
     return {"tool_calls": state["tool_calls"], "pending_approvals": [], "next": "tools"}
@@ -199,21 +227,26 @@ def execute_tools(state: AgentState, config: RunnableConfig) -> dict:
     thread_id = config["configurable"].get("thread_id")
     workdir = get_workdir(thread_id) if thread_id else None
 
+    print(f"[AGENT] execute_tools: {len(state['tool_calls'])} tool_calls, thread={thread_id}, workdir={workdir}", flush=True)
     outputs = []
     for tc in state["tool_calls"]:
         fn = tools.get(tc["name"])
         if fn is None:
+            print(f"[AGENT]   {tc['name']}: unknown tool!", flush=True)
             outputs.append({"role": "tool", "content": f"Unknown tool: {tc['name']}", "tool_call_id": tc["id"]})
             continue
         args = dict(tc["args"])
         _inject_workdir(fn.name, args, workdir)
         start = _time.time()
         error = None
+        print(f"[AGENT]   executing {tc['name']} with args={str(args)[:200]}", flush=True)
         try:
             result = fn.invoke(args)
         except Exception as e:
             result = f"Tool error: {e}"
             error = str(e)
+            print(f"[AGENT]   {tc['name']} ERROR: {e}", flush=True)
+        print(f"[AGENT]   {tc['name']} result: {str(result)[:200]}", flush=True)
         outputs.append({"role": "tool", "content": str(result), "tool_call_id": tc["id"]})
         _record_tool_trace(
             tool_name=tc["name"],
@@ -224,6 +257,7 @@ def execute_tools(state: AgentState, config: RunnableConfig) -> dict:
             latency_ms=int((_time.time() - start) * 1000),
             error=error,
         )
+    print(f"[AGENT] execute_tools done: {len(outputs)} outputs", flush=True)
     return {"messages": outputs, "tool_outputs": outputs, "next": "agent"}
 
 

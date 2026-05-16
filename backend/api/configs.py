@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from core.llm import get_chat_model
 from services.provider_config import load_configs, save_configs, make_entry
+from services.feishu_config import load as load_feishu, save as save_feishu
 
 router = APIRouter()
 
@@ -63,3 +64,34 @@ async def test_config(cfg: dict):
     except Exception as e:
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
+
+
+# ── Feishu bot config ────────────────────────────────
+
+
+@router.get("/api/feishu-config")
+async def get_feishu_config():
+    """Return saved Feishu bot config (without exposing secrets in list)."""
+    cfg = load_feishu()
+    return {
+        "app_id": cfg.get("app_id", ""),
+        "app_secret": "***" if cfg.get("app_secret") else "",
+        "bot_name": cfg.get("bot_name", ""),
+        "has_secret": bool(cfg.get("app_secret")),
+    }
+
+
+@router.put("/api/feishu-config")
+async def update_feishu_config(cfg: dict):
+    """Save Feishu bot config."""
+    existing = load_feishu()
+    app_secret = cfg.get("app_secret", "")
+    # Preserve existing secret if masked
+    if app_secret == "***" and existing.get("app_secret"):
+        app_secret = existing["app_secret"]
+    save_feishu({
+        "app_id": cfg.get("app_id", existing.get("app_id", "")),
+        "app_secret": app_secret,
+        "bot_name": cfg.get("bot_name", existing.get("bot_name", "")),
+    })
+    return {"ok": True}

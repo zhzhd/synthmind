@@ -80,7 +80,7 @@ def _ddg_instant(query: str) -> str:
             url,
             headers={"User-Agent": "SynthMind/1.0"},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data: dict[str, Any] = json.loads(resp.read().decode())
 
         lines = [f"🔍 **{query}**\n"]
@@ -92,7 +92,6 @@ def _ddg_instant(query: str) -> str:
                 lines.append(f"  _Source: {source}_")
             lines.append("")
 
-        # Related topics
         topics = data.get("RelatedTopics", [])
         if topics:
             for t in topics[:5]:
@@ -109,7 +108,6 @@ def _ddg_instant(query: str) -> str:
                         if text:
                             lines.append(f"  • {text[:120]}")
 
-        # Results section
         results = data.get("Results", [])
         for r in results[:3]:
             text = r.get("Text", "")
@@ -120,7 +118,7 @@ def _ddg_instant(query: str) -> str:
                     lines.append(f"    _{url}_")
 
         if len(lines) <= 1:
-            return _ddg_html(query)  # fallback to HTML scrape
+            return _ddg_html(query)
 
         return "\n".join(lines)
 
@@ -145,7 +143,7 @@ def _ddg_html(query: str, fallback_error: str = "") -> str:
                 ),
             },
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             html = resp.read().decode()
 
         lines = [f"🔍 **{query}**\n"]

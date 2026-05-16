@@ -34,6 +34,7 @@ class ChatResponse(BaseModel):
     message: str
     thread_id: str
     reasoning_content: str | None = None
+    token_usage: dict | None = None
 
 
 class ModelInfo(BaseModel):
