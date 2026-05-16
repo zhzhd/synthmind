@@ -13,12 +13,13 @@ from typing_extensions import Annotated, TypedDict
 
 class ModelConfig(BaseModel):
     """Configuration for an LLM provider and model."""
-    provider: str = Field(default="anthropic")
-    model: str = Field(default="claude-sonnet-4-20250514")
+    provider: str = Field(default="deepseek")
+    model: str = Field(default="deepseek-v4-flash")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=1, le=128000)
     api_key: str = Field(default="")
     base_url: str = Field(default="")
+    reasoning_effort: str = Field(default="high")
 
 
 class ChatRequest(BaseModel):
@@ -32,6 +33,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     message: str
     thread_id: str
+    reasoning_content: str | None = None
+    token_usage: dict | None = None
 
 
 class ModelInfo(BaseModel):
@@ -73,6 +76,7 @@ class ApprovalRequest(BaseModel):
     pending_id: str
     decision: str = "approve"
     edited_args: dict[str, Any] | None = None
+    whitelist: bool = False
 
 
 # ── LangGraph state ────────────────────────────────────────────────

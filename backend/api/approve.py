@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from core.agent import resume_with_approval, resume_with_multiple_approvals
 from core.state import ApprovalRequest, ModelConfig
 from services.hitl import get_pending, resolve_pending
+from services.whitelist import add_to_whitelist
 
 router = APIRouter()
 
@@ -17,6 +18,10 @@ async def approve(req: ApprovalRequest):
     if not pending:
         raise HTTPException(404, "Approval not found")
     resolve_pending(req.pending_id, req.decision, req.edited_args)
+
+    # Whitelist the tool if requested
+    if req.whitelist and req.decision == "approve":
+        add_to_whitelist(pending["tool_name"])
 
     mc_data = pending.get("model_config", {})
     mc = ModelConfig(provider=mc_data.get("provider", "anthropic"), model=mc_data.get("model", ""), api_key=mc_data.get("api_key", ""), base_url=mc_data.get("base_url", ""))

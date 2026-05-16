@@ -11,5 +11,12 @@ dist/
 *.local
 backend/.config/providers_config.json
 backend/.config/skills_index.json
+backend/.config/logs/
+backend/.config/threads/
+backend/.config/subagent_runs
+backend/.config/sandbox.json
+backend/.config/todos.json
+backend/.config/whitelist.json
+backend/.config/feishu_config.json
 
 frontend/src-tauri/target/

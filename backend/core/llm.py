@@ -10,24 +10,15 @@ from langchain_core.language_models.chat_models import BaseChatModel
 load_dotenv()
 
 PROVIDER_MODELS: dict[str, list[str]] = {
-    "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-opus-4-20250514"],
-    "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o3-mini"],
-    "deepseek": ["deepseek-chat", "deepseek-reasoner"],
-    "ollama": ["llama3.2", "llama3.1", "mistral", "qwen2.5"],
+    "deepseek": ["deepseek-v4-flash", "deepseek-v4-pro"],
 }
 
 ENV_KEY_MAP: dict[str, str] = {
-    "anthropic": "ANTHROPIC_API_KEY",
-    "openai": "OPENAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
-    "ollama": "",
 }
 
 IMPORT_MAP: dict[str, str] = {
-    "anthropic": "core.providers.anthropic",
-    "openai": "core.providers.openai",
     "deepseek": "core.providers.deepseek",
-    "ollama": "core.providers.ollama",
 }
 
 
@@ -50,10 +41,7 @@ def available_providers() -> list[dict]:
     models = []
     for prov in IMPORT_MAP:
         env_key = ENV_KEY_MAP[prov]
-        has_key = not env_key or bool(os.getenv(env_key))
-        if prov == "ollama" or has_key:
-            for m in PROVIDER_MODELS[prov]:
-                models.append({"provider": prov, "model": m, "available": True})
-        else:
-            models.append({"provider": prov, "model": "", "available": False})
+        has_key = not env_key or os.getenv(env_key)
+        for m in PROVIDER_MODELS[prov]:
+            models.append({"provider": prov, "model": m, "available": bool(has_key)})
     return models

@@ -76,9 +76,9 @@ export default function AgentPanel() {
   };
 
   return (
-    <div className="sidebar-section">
+    <div className="right-panel-tab-content">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <h3>Agents ({agents.length})</h3>
+        <h3 className="right-panel-tab-heading">Agents ({agents.length})</h3>
         <button className="btn-xs" onClick={load} disabled={loading} title="Refresh">
           ↻
         </button>
