@@ -3,6 +3,7 @@ import { gitStage, gitUnstage, gitStageAll, gitUnstageAll, gitCommitStaged, gitD
 import type { GitStatusEntry, ConflictFile } from "../lib/api";
 import { useGit } from "../GitContext";
 import DiffPreview from "./DiffPreview";
+import ConflictMergeView from "./ConflictMergeView";
 
 const STATUS_LABELS: Record<string, string> = {
   modified: "M", added: "A", deleted: "D", untracked: "?", renamed: "R", conflicted: "!", copied: "C", changed: "~",
@@ -26,7 +27,6 @@ export default function ChangesView() {
   const [loadingStash, setLoadingStash] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictFile[]>([]);
   const [loadingConflicts, setLoadingConflicts] = useState(false);
-  const [manualContent, setManualContent] = useState<Record<string, string>>({});
   const [resolving, setResolving] = useState<string | null>(null);
 
   // Fetch stash list when stash section is opened
@@ -106,10 +106,10 @@ export default function ChangesView() {
     }
   }, [conflicted.length, repoRoot]);
 
-  const handleConflictResolve = async (file: string, strategy: "ours" | "theirs" | "manual") => {
+  const handleConflictResolve = async (file: string, strategy: "ours" | "theirs" | "manual", manualContentStr?: string) => {
     setResolving(file);
     try {
-      const content = strategy === "manual" ? (manualContent[file] || "") : "";
+      const content = strategy === "manual" ? (manualContentStr || "") : "";
       await gitResolveConflict(repoRoot, file, strategy, content);
       addConsole("resolve", `Resolved ${file} (${strategy})`);
       setConflictData((prev) => prev.filter((c) => c.file !== file));
@@ -189,7 +189,7 @@ export default function ChangesView() {
 
   return (
     <div className="git-changes">
-      {/* Conflicted — conflict resolution panel */}
+      {/* Conflicted — three-pane merge view */}
       {conflicted.length > 0 && (
         <div className="git-conflict-section">
           <div className="git-changes-header">
@@ -197,55 +197,20 @@ export default function ChangesView() {
           </div>
           {loadingConflicts && <div className="git-conflict-loading" style={{ padding: "6px 8px", color: "var(--text-dim)", fontSize: 11 }}>Analyzing conflicts...</div>}
           {!loadingConflicts && conflictData.map((cf) => (
-            <div key={cf.file} className="git-conflict-file">
-              <div className="git-conflict-file-header">{cf.file}</div>
-              <div className="git-conflict-panel">
-                {cf.segments.map((seg, i) => (
-                  <div key={i} className={`git-conflict-segment git-conflict-${seg.type}`}>
-                    <div className="git-conflict-label">
-                      {seg.type === "ours" ? "OURS" : seg.type === "theirs" ? "THEIRS" : seg.type === "context" ? "" : seg.type.toUpperCase()}
-                    </div>
-                    <pre className="git-conflict-content">{seg.content}</pre>
-                  </div>
-                ))}
-              </div>
-              <div className="git-conflict-actions">
-                <button
-                  className="btn-xs"
-                  onClick={() => handleConflictResolve(cf.file, "ours")}
-                  disabled={resolving === cf.file}
-                  title="Accept our version"
-                >Accept Ours</button>
-                <button
-                  className="btn-xs"
-                  onClick={() => handleConflictResolve(cf.file, "theirs")}
-                  disabled={resolving === cf.file}
-                  title="Accept their version"
-                >Accept Theirs</button>
-                <button
-                  className="btn-xs btn-primary"
-                  onClick={() => {
-                    const merged = cf.segments.map((s) => s.content).join("\n");
-                    setManualContent((prev) => ({ ...prev, [cf.file]: merged }));
-                  }}
-                >Edit Manually</button>
-              </div>
-              {manualContent[cf.file] !== undefined && (
-                <div className="git-conflict-manual">
-                  <textarea
-                    className="git-conflict-textarea"
-                    value={manualContent[cf.file]}
-                    onChange={(e) => setManualContent((prev) => ({ ...prev, [cf.file]: e.target.value }))}
-                    rows={6}
-                  />
-                  <button
-                    className="btn-xs btn-primary"
-                    onClick={() => handleConflictResolve(cf.file, "manual")}
-                    disabled={resolving === cf.file}
-                  >Apply Manual</button>
-                </div>
-              )}
-            </div>
+            <ConflictMergeView
+              key={cf.file}
+              conflict={cf}
+              resolving={resolving === cf.file}
+              onResolve={(strategy, content) => {
+                if (strategy === "ours") {
+                  handleConflictResolve(cf.file, "ours");
+                } else if (strategy === "theirs") {
+                  handleConflictResolve(cf.file, "theirs");
+                } else if (content !== undefined) {
+                  handleConflictResolve(cf.file, "manual", content);
+                }
+              }}
+            />
           ))}
           {!loadingConflicts && conflictData.length === 0 && conflicted.length > 0 && (
             <div className="git-conflict-simple">

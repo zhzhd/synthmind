@@ -790,6 +790,40 @@ body {
   font-weight: 600;
 }
 
+.file-tree-item.has-git-status {
+  border-left-color: inherit;
+}
+
+.file-tree-item .file-tree-name {
+  transition: color 0.1s;
+}
+
+/* GitHub/IntelliJ-style git status legend */
+.git-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.git-status-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0.8;
+}
+
+.git-status-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 .file-tree-icon {
   font-size: 13px;
   flex-shrink: 0;
@@ -1300,6 +1334,83 @@ body {
   background: rgba(96, 165, 250, 0.08);
 }
 .diff-hunk .diff-line-body { color: var(--accent-blue); }
+
+/* Split diff & syntax highlighting */
+
+.diff-line-sign {
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+  text-align: center;
+  user-select: none;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.diff-empty {
+  min-height: 14px;
+}
+
+.git-diff-mode-toggle {
+  display: flex;
+  gap: 2px;
+  margin-right: 8px;
+}
+
+.git-diff-mode-toggle .btn-xs {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.git-diff-split {
+  display: flex;
+  width: 100%;
+}
+
+.diff-split-column {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.diff-split-column .diff-line {
+  padding: 0 2px;
+}
+
+.diff-split-divider {
+  width: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.diff-line-num-split {
+  display: inline-block;
+  width: 28px;
+  min-width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 6px;
+  color: var(--text-dim);
+  font-size: 9px;
+  user-select: none;
+  font-feature-settings: "tnum";
+}
+
+.diff-split-column .diff-added {
+  background: rgba(34, 197, 94, 0.1);
+}
+.diff-split-column .diff-removed {
+  background: rgba(239, 68, 68, 0.1);
+}
+.diff-split-column .diff-added .diff-line-body { color: var(--accent-green); }
+.diff-split-column .diff-removed .diff-line-body { color: var(--danger); }
+
+/* Syntax highlighting inside diff */
+.diff-line-body .diff-syn-keyword { color: #c792ea; }
+.diff-line-body .diff-syn-string { color: #c3e88d; }
+.diff-line-body .diff-syn-comment { color: #546e7a; font-style: italic; }
+.diff-line-body .diff-syn-number { color: #f78c6c; }
 
 /* ── Log View ────────────────────────────────────────── */
 
@@ -2952,6 +3063,140 @@ body {
 }
 
 /* ── Phase 3: Conflict resolution ──────────────────── */
+
+/* ── Three-pane merge view (ConflictMergeView) ─────────── */
+
+.cmv-container {
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+
+.cmv-file-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+  padding: 6px 8px;
+  word-break: break-all;
+  background: rgba(239, 68, 68, 0.06);
+  border-bottom: 1px solid var(--border);
+}
+
+.cmv-panes {
+  display: flex;
+  height: 280px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cmv-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cmv-pane + .cmv-pane {
+  border-left: 1px solid var(--border);
+}
+
+.cmv-pane-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.cmv-pane-title {
+  color: var(--text-dim);
+}
+
+.cmv-pane-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.cmv-pane-badge.ours {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--accent-green);
+}
+
+.cmv-pane-badge.theirs {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--accent-blue);
+}
+
+.cmv-pane-scroll {
+  flex: 1;
+  overflow: auto;
+}
+
+.cmv-pane-content {
+  margin: 0;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--font);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.cmv-pane-editor {
+  flex: 1;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 10px;
+  line-height: 1.5;
+  tab-size: 2;
+  box-sizing: border-box;
+}
+
+.cmv-pane-editor:focus {
+  background: rgba(99, 102, 241, 0.03);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.cmv-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  flex-wrap: wrap;
+  background: var(--surface);
+}
+
+.cmv-hint {
+  padding: 2px 8px 4px;
+  font-size: 9px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+.cmv-hint kbd {
+  display: inline-block;
+  padding: 0 3px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 9px;
+}
+
+/* ── Old conflict styles (kept for fallback) ──── */
 
 .git-conflict-section {
   border: 1px solid var(--danger);
