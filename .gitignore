@@ -20,3 +20,4 @@ backend/.config/whitelist.json
 backend/.config/feishu_config.json
 
 frontend/src-tauri/target/
+.claude/
