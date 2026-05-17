@@ -1242,15 +1242,37 @@ body {
 .diff-line {
   display: flex;
   min-height: 14px;
-  padding: 0 8px;
+  padding: 0 4px;
 }
 
-.diff-line-sign {
+.diff-line-old-num {
   display: inline-block;
-  width: 12px;
+  width: 36px;
+  min-width: 36px;
   flex-shrink: 0;
-  text-align: center;
+  text-align: right;
+  padding-right: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
   user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 4px;
+  font-feature-settings: "tnum";
+}
+
+.diff-line-new-num {
+  display: inline-block;
+  width: 36px;
+  min-width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+  user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 4px;
+  font-feature-settings: "tnum";
 }
 
 .diff-line-body {
@@ -1262,19 +1284,21 @@ body {
 .diff-added {
   background: rgba(34, 197, 94, 0.12);
 }
-.diff-added .diff-line-sign { color: var(--accent-green); }
 .diff-added .diff-line-body { color: var(--accent-green); }
 
 .diff-removed {
   background: rgba(239, 68, 68, 0.12);
 }
-.diff-removed .diff-line-sign { color: var(--danger); }
 .diff-removed .diff-line-body { color: var(--danger); }
+
+.diff-context {
+  background: transparent;
+}
+.diff-context .diff-line-body { color: var(--text); }
 
 .diff-hunk {
   background: rgba(96, 165, 250, 0.08);
 }
-.diff-hunk .diff-line-sign { color: var(--accent-blue); }
 .diff-hunk .diff-line-body { color: var(--accent-blue); }
 
 /* ── Log View ────────────────────────────────────────── */
@@ -1296,11 +1320,11 @@ body {
 
 .git-log-graph {
   font-family: monospace;
-  font-size: 10px;
+  font-size: 11px;
   white-space: pre;
-  color: var(--text-dim);
   flex-shrink: 0;
-  min-width: 20px;
+  min-width: 40px;
+  line-height: 1.4;
 }
 
 .git-log-hash {
@@ -1671,6 +1695,59 @@ body {
   color: var(--text-dim);
   white-space: pre-wrap;
   line-height: 1.4;
+}
+
+/* ── Git Stash List ─────────────────────────────────── */
+
+.git-stash-section {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.git-stash-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: var(--surface);
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+.git-stash-toggle:hover { color: var(--text); }
+
+.git-stash-item {
+  display: flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 10px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.git-stash-item:last-child { border-bottom: none; }
+
+.git-stash-msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.git-stash-meta {
+  color: var(--text-dim);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.git-stash-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 /* ── Scrollbar ──────────────────────────────────────── */
@@ -2752,4 +2829,481 @@ body {
 
 .time-travel-branch-form input:focus {
   border-color: var(--primary);
+}
+
+/* ── Phase 2: Tags ────────────────────────────────── */
+
+.git-tags-section {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 4px;
+}
+
+.git-tags-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.git-tags-toggle:hover { background: var(--surface-hover); }
+
+.git-tags-body {
+  padding: 4px 8px;
+}
+
+.git-tags-create {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: var(--surface);
+}
+
+.git-tags-create input {
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  outline: none;
+}
+
+.git-tags-create input:focus { border-color: var(--primary); }
+
+.git-tag-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  transition: background 0.1s;
+}
+
+.git-tag-item:hover { background: var(--surface-hover); }
+
+.git-tag-name {
+  color: var(--accent-green);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.git-tag-meta {
+  color: var(--text-dim);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.git-tag-msg {
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Phase 2: Log actions (cherry-pick/revert) ────── */
+
+.git-log-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.git-log-confirm {
+  padding: 6px 10px;
+  margin: 4px 8px;
+  border: 1px solid var(--accent-blue);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11px;
+  color: var(--text);
+}
+
+.git-log-confirm-msg {
+  color: var(--text-dim);
+  font-size: 10px;
+  margin: 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-log-confirm-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* ── Phase 3: Conflict resolution ──────────────────── */
+
+.git-conflict-section {
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.git-conflict-file {
+  border-bottom: 1px solid var(--border);
+  padding: 6px;
+}
+
+.git-conflict-file:last-child { border-bottom: none; }
+
+.git-conflict-file-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+  padding: 2px 0 4px;
+  word-break: break-all;
+}
+
+.git-conflict-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.git-conflict-segment {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.git-conflict-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.git-conflict-ours {
+  background: rgba(34, 197, 94, 0.1);
+  border-left: 3px solid var(--accent-green);
+}
+.git-conflict-ours .git-conflict-label { color: var(--accent-green); }
+
+.git-conflict-theirs {
+  background: rgba(96, 165, 250, 0.1);
+  border-left: 3px solid var(--accent-blue);
+}
+.git-conflict-theirs .git-conflict-label { color: var(--accent-blue); }
+
+.git-conflict-context {
+  background: transparent;
+  border-left: 3px solid transparent;
+}
+
+.git-conflict-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.git-conflict-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.git-conflict-manual {
+  margin-top: 6px;
+}
+
+.git-conflict-textarea {
+  width: 100%;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.git-conflict-textarea:focus {
+  border-color: var(--primary);
+}
+
+.git-conflict-simple {
+  padding: 4px;
+}
+
+.git-conflict-loading {
+  padding: 6px 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* ── Phase 3: Network view ─────────────────────────── */
+
+.git-network-section {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 4px;
+}
+
+.git-network-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.git-network-toggle:hover { background: var(--surface-hover); }
+
+.git-network-body {
+  padding: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.git-network-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.git-network-item:hover { background: var(--surface-hover); }
+
+.git-network-graph {
+  font-family: monospace;
+  font-size: 11px;
+  white-space: pre;
+  flex-shrink: 0;
+  min-width: 40px;
+  line-height: 1.4;
+}
+
+.git-network-hash {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.git-network-msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.git-network-time {
+  color: var(--text-dim);
+  flex-shrink: 0;
+  font-size: 9px;
+}
+
+/* ── Phase 4: Interactive Rebase ───────────────────── */
+
+.git-rebase-panel {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  margin: 4px;
+  overflow: hidden;
+}
+
+.git-rebase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--border);
+}
+
+.git-rebase-onto-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+}
+
+.git-rebase-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.git-rebase-onto-input {
+  flex: 1;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  outline: none;
+}
+
+.git-rebase-onto-input:focus {
+  border-color: var(--primary);
+}
+
+.git-rebase-plan {
+  border-top: 1px solid var(--border);
+}
+
+.git-rebase-stats {
+  display: flex;
+  gap: 12px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--surface);
+}
+
+.git-rebase-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.git-rebase-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.git-rebase-item:hover {
+  background: var(--surface-hover);
+}
+
+.git-rebase-item.dragging {
+  background: var(--surface-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+
+.git-rebase-drag-handle {
+  cursor: grab;
+  color: var(--text-dim);
+  font-size: 14px;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+}
+
+.git-rebase-drag-handle:active {
+  cursor: grabbing;
+}
+
+.git-rebase-num {
+  color: var(--text-dim);
+  font-size: 9px;
+  width: 16px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.git-rebase-action-select {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 1px 2px;
+  cursor: pointer;
+  outline: none;
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.git-rebase-action-select:focus {
+  border-color: var(--primary);
+}
+
+.git-rebase-hash {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.git-rebase-msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.git-rebase-author {
+  color: var(--text-dim);
+  font-size: 9px;
+  flex-shrink: 0;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.git-rebase-execute {
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.git-rebase-status-banner {
+  padding: 12px;
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.git-rebase-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+}
+
+.git-log-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
 }

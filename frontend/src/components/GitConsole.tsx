@@ -1,11 +1,5 @@
-interface ConsoleEntry {
-  command: string;
-  output: string;
-  timestamp: number;
-}
-
 export default function GitConsole({ entries, open, onToggle, onClear }: {
-  entries: ConsoleEntry[];
+  entries: { command: string; output: string; timestamp: number }[];
   open: boolean;
   onToggle: () => void;
   onClear: () => void;
@@ -23,8 +17,8 @@ export default function GitConsole({ entries, open, onToggle, onClear }: {
           {entries.map((e, i) => (
             <div key={i} className="git-console-entry">
               <div className="git-console-cmd">$ {e.command}</div>
-              {(e.stdout || e.stderr) && (
-                <pre className="git-console-out">{(e.stdout || e.stderr).trim()}</pre>
+              {e.output && (
+                <pre className="git-console-out">{e.output.trim()}</pre>
               )}
             </div>
           ))}
