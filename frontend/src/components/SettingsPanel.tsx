@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "../ThemeContext";
+import { useTranslation } from "../useLanguage";
 import type { ProviderConfig, SkillInfo, SkillDetail, MemoryEntry } from "../lib/api";
 import {
   fetchConfigs, createConfig, updateConfig, deleteConfig, testConfig,
@@ -24,6 +25,7 @@ type ProviderForm = typeof EMPTY_PROVIDER_FORM;
 
 export default function SettingsPanel({ open, onClose }: Props) {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<"providers" | "feishu" | "skills" | "memory" | "whitelist" | "traces" | "appearance">("providers");
   if (!open) return null;
 
@@ -32,19 +34,19 @@ export default function SettingsPanel({ open, onClose }: Props) {
       <div className="settings-modal skill-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <div style={{ display: "flex", gap: 4 }}>
-            <button className={`tab-btn ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")}>Providers</button>
-            <button className={`tab-btn ${tab === "skills" ? "active" : ""}`} onClick={() => setTab("skills")}>Skills</button>
-            <button className={`tab-btn ${tab === "memory" ? "active" : ""}`} onClick={() => setTab("memory")}>Memory</button>
-            <button className={`tab-btn ${tab === "feishu" ? "active" : ""}`} onClick={() => setTab("feishu")}>Feishu</button>
-            <button className={`tab-btn ${tab === "whitelist" ? "active" : ""}`} onClick={() => setTab("whitelist")}>Whitelist</button>
-            <button className={`tab-btn ${tab === "traces" ? "active" : ""}`} onClick={() => setTab("traces")}>Traces</button>
-            <button className={`tab-btn ${tab === "appearance" ? "active" : ""}`} onClick={() => setTab("appearance")}>Appearance</button>
+            <button className={`tab-btn ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")}>{t("settings.providers")}</button>
+            <button className={`tab-btn ${tab === "skills" ? "active" : ""}`} onClick={() => setTab("skills")}>{t("settings.skills")}</button>
+            <button className={`tab-btn ${tab === "memory" ? "active" : ""}`} onClick={() => setTab("memory")}>{t("settings.memory")}</button>
+            <button className={`tab-btn ${tab === "feishu" ? "active" : ""}`} onClick={() => setTab("feishu")}>{t("settings.feishu")}</button>
+            <button className={`tab-btn ${tab === "whitelist" ? "active" : ""}`} onClick={() => setTab("whitelist")}>{t("settings.whitelist")}</button>
+            <button className={`tab-btn ${tab === "traces" ? "active" : ""}`} onClick={() => setTab("traces")}>{t("settings.traces")}</button>
+            <button className={`tab-btn ${tab === "appearance" ? "active" : ""}`} onClick={() => setTab("appearance")}>{t("settings.appearance")}</button>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button
               className="theme-toggle"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              title={t(theme === "dark" ? "appearance.switch_to_light" : "appearance.switch_to_dark")}
             >
               {theme === "dark" ? "☀️" : "🌙"}
             </button>
@@ -532,24 +534,38 @@ function WhitelistTab() {
 
 function AppearanceTab() {
   const { theme, setTheme, font, setFont } = useTheme();
+  const { t, lang, setLang } = useTranslation();
   return (
     <div className="settings-body" style={{ flexDirection: "column" }}>
       <div className="appearance-section">
-        <h3>Color Theme</h3>
-        <label>Theme</label>
-        <select value={theme} onChange={(e) => setTheme(e.target.value as "dark" | "light")}>
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
+        <h3>{t("appearance.theme")}</h3>
+        <label>{t("appearance.theme_label")}</label>
+        <select value={theme} onChange={(e) => setTheme(e.target.value as any)}>
+          <option value="dark">{t("appearance.dark")}</option>
+          <option value="light">{t("appearance.light")}</option>
+          <option value="oled">{t("appearance.oled")}</option>
+          <option value="sepia">{t("appearance.sepia")}</option>
         </select>
       </div>
       <div className="appearance-section">
-        <h3>Font</h3>
-        <label>Interface Font</label>
+        <h3>{t("appearance.font")}</h3>
+        <label>{t("appearance.font_label")}</label>
         <select value={font} onChange={(e) => setFont(e.target.value as any)}>
-          <option value="inter">Inter</option>
-          <option value="system">System Default</option>
-          <option value="serif">Serif</option>
-          <option value="mono">Monospace</option>
+          <option value="inter">{t("appearance.font_inter")}</option>
+          <option value="system">{t("appearance.font_system")}</option>
+          <option value="serif">{t("appearance.font_serif")}</option>
+          <option value="mono">{t("appearance.font_mono")}</option>
+          <option value="pingfang">{t("appearance.font_pingfang")}</option>
+          <option value="rounded">{t("appearance.font_rounded")}</option>
+          <option value="emoji">{t("appearance.font_emoji")}</option>
+        </select>
+      </div>
+      <div className="appearance-section" style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+        <h3>{t("appearance.lang")}</h3>
+        <label>{t("appearance.lang_label")}</label>
+        <select value={lang} onChange={(e) => setLang(e.target.value as "zh" | "en")}>
+          <option value="en">{t("appearance.lang_en")}</option>
+          <option value="zh">{t("appearance.lang_zh")}</option>
         </select>
       </div>
     </div>

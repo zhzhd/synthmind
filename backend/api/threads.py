@@ -21,6 +21,7 @@ router = APIRouter()
 def _messages_from_checkpointer(thread_id: str) -> list[dict] | None:
     """Try to extract message history from the checkpointer.
 
+    Returns the messages from the newest checkpoint (full accumulated state).
     Returns None if the thread has no checkpoints (JSON fallback).
     """
     try:
@@ -29,10 +30,9 @@ def _messages_from_checkpointer(thread_id: str) -> list[dict] | None:
         history = list(agent.get_state_history(config))
         if not history:
             return None
-        # Get the most recent checkpoint (full state)
-        latest = history[-1]  # oldest = most complete
-        # Try the newest first that has parent
-        for h in reversed(history):
+        # history is newest-first, so history[0] is the latest checkpoint
+        # with the most complete message list
+        for h in history:
             msgs = h.values.get("messages", [])
             if msgs:
                 return msgs

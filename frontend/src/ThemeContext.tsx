@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
-type Theme = "dark" | "light";
-type FontKey = "inter" | "system" | "serif" | "mono";
+type Theme = "dark" | "light" | "oled" | "sepia";
+type FontKey = "inter" | "system" | "serif" | "mono" | "pingfang" | "rounded" | "emoji";
 
 interface ThemeContextValue {
   theme: Theme;
@@ -12,10 +12,13 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+const VALID_THEMES: readonly Theme[] = ["dark", "light", "oled", "sepia"];
+const VALID_FONTS: readonly FontKey[] = ["inter", "system", "serif", "mono", "pingfang", "rounded", "emoji"];
+
 function getInitialTheme(): Theme {
   try {
     const saved = localStorage.getItem("synthmind_theme");
-    if (saved === "dark" || saved === "light") return saved;
+    if (saved && VALID_THEMES.includes(saved as Theme)) return saved as Theme;
   } catch { /* ignore */ }
   if (window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
   return "dark";
@@ -24,7 +27,7 @@ function getInitialTheme(): Theme {
 function getInitialFont(): FontKey {
   try {
     const saved = localStorage.getItem("synthmind_font");
-    if (saved === "inter" || saved === "system" || saved === "serif" || saved === "mono") return saved;
+    if (saved && VALID_FONTS.includes(saved as FontKey)) return saved as FontKey;
   } catch { /* ignore */ }
   return "inter";
 }

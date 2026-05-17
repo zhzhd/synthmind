@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time as _time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -320,6 +322,27 @@ async def run_agent(message: str, model_config: ModelConfig | None = None, syste
         return "", thread_id, pending
 
     all_msgs = state.get("messages", [])
+
+    # Touch thread JSON so the thread list shows correct order/preview
+    try:
+        path = Path(__file__).resolve().parent.parent / ".config" / "threads" / f"{thread_id}.json"
+        if path.exists():
+            data = json.loads(path.read_text())
+            # Only update if there's a new user message to set as preview
+            if not any(m.get("role") == "user" for m in data.get("messages", [])):
+                data.setdefault("messages", []).append({"role": "user", "content": message[:80]})
+            data["updated_at"] = time.time()
+            path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({
+                "thread_id": thread_id,
+                "messages": [{"role": "user", "content": message[:80]}],
+                "updated_at": time.time(),
+            }, indent=2))
+    except Exception:
+        pass
+
     for m in reversed(all_msgs):
         d = m if isinstance(m, dict) else {}
         if d.get("role") == "assistant":

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { fetchFiles, fetchFileContent, saveFileContent, fetchFIMComplete, fetchThreadWorkdir, fetchGitInfo, fetchGitStatus, gitCommit, gitCheckout, fetchGitBranches } from "../lib/api";
 import type { FileEntry, GitStatusEntry } from "../lib/api";
+import { useTranslation } from "../useLanguage";
 
 interface Props {
   threadId?: string;
@@ -17,6 +18,7 @@ const GIT_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FilesPanel({ threadId }: Props) {
+  const { t } = useTranslation();
   const [rootPath, setRootPath] = useState("");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -291,11 +293,11 @@ export default function FilesPanel({ threadId }: Props) {
   return (
     <div className="files-panel">
       <div className="files-panel-header">
-        <span className="files-panel-title">Workspace</span>
+        <span className="files-panel-title">{t("files.title")}</span>
         {rootPath && <span className="files-panel-path">{rootPath}</span>}
         {gitInfo.is_repo && gitInfo.branch && (
           <div className="git-bar">
-            <button className="git-branch-btn" onClick={openBranchPicker} title="Switch branch">
+            <button className="git-branch-btn" onClick={openBranchPicker} title={t("files.switch_branch")}>
               ⎇ {gitInfo.branch}
             </button>
             {changedCount > 0 && (
@@ -342,7 +344,7 @@ export default function FilesPanel({ threadId }: Props) {
 
       <div className="files-panel-body">
         <div className="files-tree">
-          {loading && <div className="files-loading">Loading...</div>}
+          {loading && <div className="files-loading">{t("files.loading")}</div>}
           {error && <div className="files-error">{error}</div>}
           {!loading && !error && rootPath && (
             <div>
@@ -357,7 +359,7 @@ export default function FilesPanel({ threadId }: Props) {
             </div>
           )}
           {!loading && !rootPath && (
-            <div className="files-empty">Set a working directory in the sidebar to browse files.</div>
+            <div className="files-empty">{t("files.empty")}</div>
           )}
         </div>
 
@@ -366,7 +368,7 @@ export default function FilesPanel({ threadId }: Props) {
             <div className="file-viewer-header">
               <span className="file-viewer-name">{selectedFile.split("/").pop()}</span>
               {!fileLoading && !editing && (
-                <button className="btn-xs" style={{ marginLeft: "auto" }} onClick={() => setEditing(true)}>Edit</button>
+                <button className="btn-xs" style={{ marginLeft: "auto" }} onClick={() => setEditing(true)}>{t("files.edit")}</button>
               )}
               {editing && (
                 <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
@@ -374,14 +376,14 @@ export default function FilesPanel({ threadId }: Props) {
                     className="btn-xs fim-btn"
                     onClick={handleFIMComplete}
                     disabled={fimLoading}
-                    title="Ctrl+Space: AI code completion"
+                    title={t("files.fim_title")}
                   >
                     {fimLoading ? "..." : "⟡ FIM"}
                   </button>
                   <button className="btn-xs btn-primary" onClick={handleSaveEdit} disabled={saving}>
-                    {saving ? "Saving..." : "Save"}
+                    {saving ? t("files.saving") : t("files.save")}
                   </button>
-                  <button className="btn-xs" onClick={handleCancelEdit}>Cancel</button>
+                  <button className="btn-xs" onClick={handleCancelEdit}>{t("files.cancel")}</button>
                 </div>
               )}
             </div>
