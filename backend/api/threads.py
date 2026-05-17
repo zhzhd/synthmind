@@ -9,12 +9,36 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.threads import get_history, list_threads, get_workdir, set_workdir, add_messages
+from core.agent import get_agent
 
 
 class WorkdirRequest(BaseModel):
     workdir: str
 
 router = APIRouter()
+
+
+def _messages_from_checkpointer(thread_id: str) -> list[dict] | None:
+    """Try to extract message history from the checkpointer.
+
+    Returns None if the thread has no checkpoints (JSON fallback).
+    """
+    try:
+        agent = get_agent()
+        config = {"configurable": {"thread_id": thread_id}}
+        history = list(agent.get_state_history(config))
+        if not history:
+            return None
+        # Get the most recent checkpoint (full state)
+        latest = history[-1]  # oldest = most complete
+        # Try the newest first that has parent
+        for h in reversed(history):
+            msgs = h.values.get("messages", [])
+            if msgs:
+                return msgs
+        return None
+    except Exception:
+        return None
 
 
 @router.post("/api/threads")
@@ -100,6 +124,24 @@ async def update_thread_workdir(thread_id: str, req: WorkdirRequest):
 
 @router.get("/api/threads/{thread_id}")
 async def get_thread(thread_id: str):
-    """Return the message history for a thread."""
+    """Return the message history for a thread.
+
+    Reads from checkpointer first (full message data), falls back to JSON
+    for threads created before checkpointer was enabled.
+    """
+    msgs = _messages_from_checkpointer(thread_id)
+    if msgs is not None:
+        return {"thread_id": thread_id, "messages": msgs, "source": "checkpointer"}
+
+    # Fall back to JSON and migrate to checkpointer (lazy migration)
     history = get_history(thread_id)
-    return {"thread_id": thread_id, "messages": history}
+    if history:
+        try:
+            agent = get_agent()
+            agent.update_state(
+                {"configurable": {"thread_id": thread_id}},
+                {"messages": history},
+            )
+        except Exception:
+            pass  # Migration failure is non-critical
+    return {"thread_id": thread_id, "messages": history, "source": "json"}

@@ -1,6 +1,40 @@
 import { useEffect, useState } from "react";
 import { fetchGitDiff, gitStage, gitUnstage, gitDiscard } from "../lib/api";
 
+function renderDiffLine(line: string, index: number): JSX.Element {
+  if (line.startsWith("@@")) {
+    return (
+      <div key={index} className="diff-line diff-hunk">
+        <span className="diff-line-num" />
+        <span className="diff-line-body">{line}</span>
+      </div>
+    );
+  }
+  if (line.startsWith("+") && !line.startsWith("+++")) {
+    return (
+      <div key={index} className="diff-line diff-added">
+        <span className="diff-line-sign">+</span>
+        <span className="diff-line-body">{line.slice(1)}</span>
+      </div>
+    );
+  }
+  if (line.startsWith("-") && !line.startsWith("---")) {
+    return (
+      <div key={index} className="diff-line diff-removed">
+        <span className="diff-line-sign">-</span>
+        <span className="diff-line-body">{line.slice(1)}</span>
+      </div>
+    );
+  }
+  // Context (unchanged) lines
+  return (
+    <div key={index} className="diff-line diff-context">
+      <span className="diff-line-sign"> </span>
+      <span className="diff-line-body">{line}</span>
+    </div>
+  );
+}
+
 export default function DiffPreview({ repoRoot, file, cached, onAction, onClose }: {
   repoRoot: string;
   file: string;
@@ -36,6 +70,8 @@ export default function DiffPreview({ repoRoot, file, cached, onAction, onClose 
   if (loading) return <div className="git-diff-preview" style={{ padding: 8, fontSize: 11, color: "var(--text-dim)" }}>Loading diff...</div>;
   if (!diff) return null;
 
+  const lines = diff.split("\n");
+
   return (
     <div className="git-diff-preview">
       <div className="git-diff-header">
@@ -52,7 +88,9 @@ export default function DiffPreview({ repoRoot, file, cached, onAction, onClose 
           <button className="btn-xs" onClick={onClose}>✕</button>
         </div>
       </div>
-      <pre className="git-diff-content">{diff}</pre>
+      <div className="git-diff-content">
+        {lines.map((line, i) => renderDiffLine(line, i))}
+      </div>
     </div>
   );
 }

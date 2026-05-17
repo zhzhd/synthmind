@@ -14,6 +14,45 @@
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* ── Theme: dark (explicit) ──────────────────────────── */
+
+[data-theme="dark"] {
+  --bg: #0f0f13;
+  --surface: #1a1a22;
+  --surface-hover: #24242e;
+  --border: #2c2c3a;
+  --text: #e4e4ec;
+  --text-dim: #8888a0;
+  --primary: #6c6cf0;
+  --primary-hover: #7f7fff;
+  --accent-green: #4ade80;
+  --accent-blue: #60a5fa;
+  --danger: #f87171;
+}
+
+/* ── Theme: light ────────────────────────────────────── */
+
+[data-theme="light"] {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-hover: #f0f0f5;
+  --border: #e0e0e8;
+  --text: #1a1a2e;
+  --text-dim: #8888a0;
+  --primary: #6c6cf0;
+  --primary-hover: #5a5ae0;
+  --accent-green: #22c55e;
+  --accent-blue: #3b82f6;
+  --danger: #ef4444;
+}
+
+/* ── Font variants ───────────────────────────────────── */
+
+[data-font="inter"]   { --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+[data-font="system"]  { --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+[data-font="serif"]   { --font: Georgia, "Times New Roman", "Noto Serif", serif; }
+[data-font="mono"]    { --font: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace; }
+
 * {
   margin: 0;
   padding: 0;
@@ -383,6 +422,24 @@ body {
 }
 
 /* ── Chat area ──────────────────────────────────────── */
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chat-header-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
 
 .chat-area {
   flex: 1;
@@ -767,6 +824,42 @@ body {
   max-height: 300px;
 }
 
+.fim-btn {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  background: transparent;
+  font-weight: 600;
+}
+.fim-btn:hover {
+  background: var(--accent-blue);
+  color: #fff;
+}
+.fim-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--text-dim);
+  border-color: var(--border);
+  background: transparent;
+}
+
+.file-viewer-editor {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: monospace;
+  color: var(--text);
+  background: var(--bg);
+  border: none;
+  outline: none;
+  resize: none;
+  min-height: 200px;
+  tab-size: 2;
+  white-space: pre;
+}
+
 /* ── Git integration ───────────────────────────────── */
 
 .git-bar {
@@ -1100,10 +1193,9 @@ body {
 
 .git-diff-content {
   margin: 0;
-  padding: 8px;
+  padding: 0;
   font-size: 10px;
   line-height: 1.5;
-  white-space: pre;
   overflow-x: auto;
   color: var(--text);
   background: var(--bg);
@@ -1111,6 +1203,44 @@ body {
   overflow-y: auto;
   font-family: monospace;
 }
+
+.diff-line {
+  display: flex;
+  min-height: 14px;
+  padding: 0 8px;
+}
+
+.diff-line-sign {
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+  text-align: center;
+  user-select: none;
+}
+
+.diff-line-body {
+  flex: 1;
+  white-space: pre;
+  min-width: 0;
+}
+
+.diff-added {
+  background: rgba(34, 197, 94, 0.12);
+}
+.diff-added .diff-line-sign { color: var(--accent-green); }
+.diff-added .diff-line-body { color: var(--accent-green); }
+
+.diff-removed {
+  background: rgba(239, 68, 68, 0.12);
+}
+.diff-removed .diff-line-sign { color: var(--danger); }
+.diff-removed .diff-line-body { color: var(--danger); }
+
+.diff-hunk {
+  background: rgba(96, 165, 250, 0.08);
+}
+.diff-hunk .diff-line-sign { color: var(--accent-blue); }
+.diff-hunk .diff-line-body { color: var(--accent-blue); }
 
 /* ── Log View ────────────────────────────────────────── */
 
@@ -1777,6 +1907,66 @@ body {
   border-color: var(--danger);
 }
 
+/* ── Theme / Appearance controls ──────────────────── */
+
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.appearance-section {
+  margin-bottom: 20px;
+}
+
+.appearance-section h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.appearance-section label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  margin-top: 12px;
+}
+
+.appearance-section label:first-of-type {
+  margin-top: 0;
+}
+
+.appearance-section select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.appearance-section select:focus {
+  border-color: var(--primary);
+}
+
 /* ── Header buttons ───────────────────────────────── */
 
 .header-btn {
@@ -2347,4 +2537,184 @@ body {
   margin: 0;
   max-height: 100px;
   overflow-y: auto;
+}
+
+/* ── Time Travel Panel ─────────────────────────────── */
+
+.time-travel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.time-travel-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.time-travel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.time-travel-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.time-travel-loading,
+.time-travel-error,
+.time-travel-empty {
+  padding: 24px 20px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.time-travel-error { color: var(--danger); }
+
+.time-travel-timeline {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.time-travel-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.time-travel-item {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+}
+
+.time-travel-item-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.time-travel-dot {
+  font-size: 12px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.time-travel-line {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--border);
+}
+
+.time-travel-item-body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.time-travel-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.time-travel-step {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.time-travel-node {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.time-travel-node.input {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.time-travel-node.loop {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+.time-travel-next {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.time-travel-preview {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-travel-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.time-travel-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.time-travel-branch-form {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex: 1;
+}
+
+.time-travel-branch-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  outline: none;
+}
+
+.time-travel-branch-form input:focus {
+  border-color: var(--primary);
 }

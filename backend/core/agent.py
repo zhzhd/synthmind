@@ -15,11 +15,15 @@ from core.llm import get_chat_model
 from core.state import AgentState, ModelConfig
 from core.tools import get_tools, SENSITIVE_TOOLS, get_todo_prompt
 from core.memory import format_memory_context
-from services.threads import get_history, add_messages, get_workdir
+from services.threads import get_history, get_workdir
 from services.whitelist import is_whitelisted
 from services.tracing import SynthMindTracer, _append_trace as _append_trace_entry
 from services.hitl import create_pending, get_pending, resolve_pending
 from services.skills import get_active_skills_instructions
+from services.checkpointer import get_checkpointer
+
+# ── Cached agent singleton ─────────────────────────────────────────
+_AGENT_CACHE: dict[str, Any] = {}
 
 
 def _build_system_prompt(user_prompt: str | None = None) -> str:
@@ -263,7 +267,7 @@ def execute_tools(state: AgentState, config: RunnableConfig) -> dict:
 
 # ── Build graph ────────────────────────────────────────────────────
 
-def build_agent() -> StateGraph:
+def build_agent(checkpointer: Any = None) -> StateGraph:
     wf = StateGraph(AgentState)
     wf.add_node("agent", call_model)
     wf.add_node("check_approval", check_approval)
@@ -272,7 +276,17 @@ def build_agent() -> StateGraph:
     wf.add_conditional_edges("agent", lambda s: s["next"])
     wf.add_conditional_edges("check_approval", lambda s: s["next"])
     wf.add_edge("tools", "agent")
-    return wf.compile()
+    return wf.compile(checkpointer=checkpointer)
+
+
+def get_agent() -> StateGraph:
+    """Return the cached singleton agent with checkpointer."""
+    global _AGENT_CACHE
+    key = "default"
+    if key not in _AGENT_CACHE:
+        cp = get_checkpointer()
+        _AGENT_CACHE[key] = build_agent(checkpointer=cp)
+    return _AGENT_CACHE[key]
 
 
 # ── Run agent ──────────────────────────────────────────────────────
@@ -283,41 +297,30 @@ async def run_agent(message: str, model_config: ModelConfig | None = None, syste
     if thread_id is None:
         thread_id = uuid.uuid4().hex[:12]
 
-    # Load conversation history for context
-    history = get_history(thread_id)
-    initial_msgs = history + [{"role": "user", "content": message}] if history else [{"role": "user", "content": message}]
-
-    agent = build_agent()
+    agent = get_agent()
     tracer = SynthMindTracer(thread_id=thread_id)
     config = {
         "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": _build_system_prompt(system_prompt)},
         "callbacks": [tracer],
     }
-    state = await agent.ainvoke(AgentState(messages=initial_msgs, next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
+
+    # Check if checkpointer already has state for this thread
+    existing = list(agent.get_state_history(config))
+    if not existing:
+        # First invocation — load from JSON (backward compat) + new message
+        history = get_history(thread_id)
+        msgs = history + [{"role": "user", "content": message}] if history else [{"role": "user", "content": message}]
+        state = await agent.ainvoke(AgentState(messages=msgs, next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
+    else:
+        # Subsequent invocation — checkpointer has state, just append new message
+        state = await agent.ainvoke({"messages": [{"role": "user", "content": message}]}, config)
 
     pending = state.get("pending_approvals", [])
     if pending:
         return "", thread_id, pending
 
-    # Save only new messages (skip previously saved history)
-    history_len = len(history)
-    new_msgs = [{"role": "user", "content": message}]
-    for i, m in enumerate(state["messages"]):
-        if i < history_len:
-            continue  # already saved from previous turns
-        d = m if isinstance(m, dict) else {}
-        if d.get("role") in ("assistant",):
-            content = str(d.get("content", ""))[:500]
-            if content:
-                msg = {"role": "assistant", "content": content}
-                rc = d.get("reasoning_content")
-                if rc:
-                    msg["reasoning_content"] = str(rc)[:2000]
-                new_msgs.append(msg)
-    if len(new_msgs) > 1:
-        add_messages(thread_id, new_msgs)
-
-    for m in reversed(state["messages"]):
+    all_msgs = state.get("messages", [])
+    for m in reversed(all_msgs):
         d = m if isinstance(m, dict) else {}
         if d.get("role") == "assistant":
             return d.get("content", ""), thread_id, None, d.get("reasoning_content")
@@ -371,27 +374,13 @@ async def resume_with_approval(pending_id: str, thread_id: str, model_config: Mo
 
     if model_config is None:
         model_config = ModelConfig()
-    sp = _build_system_prompt(system_prompt)
 
-    agent = build_agent()
+    agent = get_agent()
     config = {
-        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": sp, "skip_approval": True},
+        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": _build_system_prompt(system_prompt), "skip_approval": True},
         "callbacks": [tracer],
     }
-    state = await agent.ainvoke(AgentState(messages=[{"role": "user", "content": status_msg}], next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
-
-    # Save thread context
-    ctx_msgs = []
-    for m in state["messages"]:
-        d = m if isinstance(m, dict) else {}
-        if d.get("role") in ("assistant",):
-            m = {"role": d["role"], "content": str(d.get("content", ""))[:500]}
-            rc = d.get("reasoning_content")
-            if rc:
-                m["reasoning_content"] = str(rc)[:2000]
-            ctx_msgs.append(m)
-    if ctx_msgs:
-        add_messages(thread_id, ctx_msgs)
+    state = await agent.ainvoke({"messages": [{"role": "user", "content": status_msg}]}, config)
 
     p2 = state.get("pending_approvals", [])
     if p2:
@@ -448,27 +437,13 @@ async def resume_with_multiple_approvals(pending_ids: list[str], thread_id: str,
         model_config = ModelConfig(provider=mc_data.get("provider", "anthropic"), model=mc_data.get("model", ""), api_key=mc_data.get("api_key", ""), base_url=mc_data.get("base_url", ""))
     if model_config is None:
         model_config = ModelConfig()
-    sp = _build_system_prompt(system_prompt)
 
-    agent = build_agent()
+    agent = get_agent()
     config = {
-        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": sp, "skip_approval": True},
+        "configurable": {"thread_id": thread_id, "model_config": model_config, "system_prompt": _build_system_prompt(system_prompt), "skip_approval": True},
         "callbacks": [tracer],
     }
-    state = await agent.ainvoke(AgentState(messages=[{"role": "user", "content": "\n".join(results_note)}], next="agent", tool_calls=[], tool_outputs=[], pending_approvals=[]), config)
-
-    # Save thread context
-    ctx_msgs = []
-    for m in state["messages"]:
-        d = m if isinstance(m, dict) else {}
-        if d.get("role") in ("assistant",):
-            m = {"role": d["role"], "content": str(d.get("content", ""))[:500]}
-            rc = d.get("reasoning_content")
-            if rc:
-                m["reasoning_content"] = str(rc)[:2000]
-            ctx_msgs.append(m)
-    if ctx_msgs:
-        add_messages(thread_id, ctx_msgs)
+    state = await agent.ainvoke({"messages": [{"role": "user", "content": "\n".join(results_note)}]}, config)
 
     p2 = state.get("pending_approvals", [])
     if p2:

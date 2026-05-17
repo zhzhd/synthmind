@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { fetchFiles, fetchFileContent, fetchThreadWorkdir, fetchGitInfo, fetchGitStatus, gitCommit, gitCheckout, fetchGitBranches } from "../lib/api";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { fetchFiles, fetchFileContent, saveFileContent, fetchFIMComplete, fetchThreadWorkdir, fetchGitInfo, fetchGitStatus, gitCommit, gitCheckout, fetchGitBranches } from "../lib/api";
 import type { FileEntry, GitStatusEntry } from "../lib/api";
 
 interface Props {
@@ -24,6 +24,11 @@ export default function FilesPanel({ threadId }: Props) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState("");
   const [fileLoading, setFileLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [fimLoading, setFimLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [dirContents, setDirContents] = useState<Record<string, FileEntry[]>>({});
 
@@ -101,13 +106,67 @@ export default function FilesPanel({ threadId }: Props) {
   const handleFileClick = async (filePath: string) => {
     setSelectedFile(filePath);
     setFileLoading(true);
+    setEditing(false);
     try {
       const data = await fetchFileContent(filePath);
       setFileContent(data.content);
+      setEditContent(data.content);
     } catch (e: any) {
       setFileContent(`Error: ${e.message}`);
+      setEditContent(`Error: ${e.message}`);
     } finally {
       setFileLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedFile) return;
+    setSaving(true);
+    try {
+      await saveFileContent(selectedFile, editContent);
+      setFileContent(editContent);
+      setEditing(false);
+    } catch (e: any) {
+      alert(`Save failed: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditContent(fileContent);
+    setEditing(false);
+  };
+
+  const handleFIMComplete = async () => {
+    const ta = textareaRef.current;
+    if (!ta || fimLoading) return;
+    const cursorPos = ta.selectionStart;
+    const before = editContent.slice(0, cursorPos);
+    const cursorLine = before.split("\n").length - 1;
+    const cursorColumn = before.split("\n").pop()?.length || 0;
+
+    setFimLoading(true);
+    try {
+      const completion = await fetchFIMComplete(editContent, cursorLine, cursorColumn);
+      if (!completion) return;
+      // Insert completion at cursor position
+      const newContent = editContent.slice(0, cursorPos) + completion + editContent.slice(cursorPos);
+      setEditContent(newContent);
+      // Restore cursor position after insert (on next tick via ref)
+      const newPos = cursorPos + completion.length;
+      // Use setTimeout to run after React re-render
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = newPos;
+          textareaRef.current.selectionEnd = newPos;
+          textareaRef.current.focus();
+        }
+      }, 0);
+    } catch (e: any) {
+      alert(`FIM completion failed: ${e.message}`);
+    } finally {
+      setFimLoading(false);
     }
   };
 
@@ -306,8 +365,46 @@ export default function FilesPanel({ threadId }: Props) {
           <div className="file-viewer">
             <div className="file-viewer-header">
               <span className="file-viewer-name">{selectedFile.split("/").pop()}</span>
+              {!fileLoading && !editing && (
+                <button className="btn-xs" style={{ marginLeft: "auto" }} onClick={() => setEditing(true)}>Edit</button>
+              )}
+              {editing && (
+                <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+                  <button
+                    className="btn-xs fim-btn"
+                    onClick={handleFIMComplete}
+                    disabled={fimLoading}
+                    title="Ctrl+Space: AI code completion"
+                  >
+                    {fimLoading ? "..." : "⟡ FIM"}
+                  </button>
+                  <button className="btn-xs btn-primary" onClick={handleSaveEdit} disabled={saving}>
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button className="btn-xs" onClick={handleCancelEdit}>Cancel</button>
+                </div>
+              )}
             </div>
-            <pre className="file-viewer-content">{fileLoading ? "Loading..." : fileContent}</pre>
+            {fileLoading ? (
+              <pre className="file-viewer-content">Loading...</pre>
+            ) : editing ? (
+              <textarea
+                ref={textareaRef}
+                className="file-viewer-editor"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                onKeyDown={(e) => {
+                  // Ctrl+Space triggers FIM completion
+                  if (e.key === " " && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleFIMComplete();
+                  }
+                }}
+                spellCheck={false}
+              />
+            ) : (
+              <pre className="file-viewer-content">{fileContent}</pre>
+            )}
           </div>
         )}
       </div>
