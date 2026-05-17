@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ModelConfig, ModelInfo } from "../lib/api";
 import { fetchModels } from "../lib/api";
+import { useTranslation } from "../useLanguage";
 
 interface Props {
   config: ModelConfig;
@@ -13,6 +14,7 @@ const REASONING_EFFORT_OPTIONS = [
 ];
 
 export default function ModelSelector({ config, onChange }: Props) {
+  const { t } = useTranslation();
   const [models, setModels] = useState<ModelInfo[]>([]);
 
   useEffect(() => {
@@ -29,10 +31,10 @@ export default function ModelSelector({ config, onChange }: Props) {
   return (
     <div className="model-selector">
       <div className="sidebar-section">
-        <h3>DeepSeek Model</h3>
+        <h3>{t("model.provider")}</h3>
 
         <div className="model-selector" style={{ marginBottom: 8 }}>
-          <label>Model</label>
+          <label>{t("model.model")}</label>
           <select
             value={config.model}
             onChange={(e) => onChange({ ...config, model: e.target.value })}
@@ -44,7 +46,7 @@ export default function ModelSelector({ config, onChange }: Props) {
         </div>
 
         <div className="model-selector">
-          <label>Reasoning Effort</label>
+          <label>{t("model.reasoning")}</label>
           <select
             value={config.reasoning_effort || "high"}
             onChange={(e) => onChange({ ...config, reasoning_effort: e.target.value })}

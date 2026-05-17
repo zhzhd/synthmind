@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ModelConfig, PendingApproval } from "../lib/api";
 import { sendMessage, approveTool, approveAll, fetchThreadHistory } from "../lib/api";
+import { useTranslation } from "../useLanguage";
 import TimeTravelPanel from "./TimeTravelPanel";
 
 interface Message {
@@ -100,6 +101,7 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showTimeTravel, setShowTimeTravel] = useState(false);
+  const { t } = useTranslation();
 
   // Sync threadId when prop changes externally (e.g. sidebar thread selection)
   useEffect(() => {
@@ -127,12 +129,12 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
         }
       }
       if (msgs.length === 0) {
-        msgs.push({ role: "assistant", content: "Hello! I'm SynthMind. Choose a model in the sidebar and start chatting." });
+        msgs.push({ role: "assistant", content: t("chat.new_session") });
       }
       setMessages(msgs);
       setHistoryLoaded(true);
     }).catch(() => {
-      setMessages([{ role: "assistant", content: "Hello! I'm SynthMind. Choose a model in the sidebar and start chatting." }]);
+      setMessages([{ role: "assistant", content: t("chat.new_session") }]);
       setHistoryLoaded(true);
     });
   }, [threadId, historyLoaded]);
@@ -388,7 +390,7 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
           <button
             className="header-btn"
             onClick={() => setShowTimeTravel(true)}
-            title="Time Travel — browse execution history and branch"
+            title={t("chat.time_travel")}
           >
             ⟳
           </button>
@@ -418,7 +420,7 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
         })}
         {loading && (
           <div className="message assistant" style={{ opacity: 0.6 }}>
-            Thinking...
+            {t("chat.thinking")}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -430,12 +432,12 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message... (Shift+Enter for new line)"
+            placeholder={t("chat.placeholder")}
             rows={1}
             disabled={loading}
           />
           <button onClick={() => handleSend()} disabled={loading || !input.trim()}>
-            Send
+            {t("chat.send")}
           </button>
         </div>
       </div>

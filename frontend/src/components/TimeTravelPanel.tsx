@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchCheckpoints, branchFromCheckpoint } from "../lib/api";
 import type { CheckpointInfo } from "../lib/api";
+import { useTranslation } from "../useLanguage";
 
 interface Props {
   threadId: string;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function TimeTravelPanel({ threadId, onBranchCreated, onClose }: Props) {
+  const { t } = useTranslation();
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,21 +66,21 @@ export default function TimeTravelPanel({ threadId, onBranchCreated, onClose }: 
     <div className="time-travel-overlay" onClick={onClose}>
       <div className="time-travel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="time-travel-header">
-          <h2>⟳ Time Travel</h2>
+          <h2>⟳ {t("tt.title")}</h2>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button className="btn-sm" onClick={load} disabled={loading} style={{ fontSize: 11 }}>
-              {loading ? "..." : "⟳ Refresh"}
+              {loading ? "..." : t("tt.refresh")}
             </button>
             <button className="settings-close" onClick={onClose}>✕</button>
           </div>
         </div>
 
-        {loading && <div className="time-travel-loading">Loading checkpoints...</div>}
+        {loading && <div className="time-travel-loading">{t("tt.loading")}</div>}
         {error && <div className="time-travel-error">{error}</div>}
 
         {!loading && !error && checkpoints.length === 0 && (
           <div className="time-travel-empty">
-            No checkpoints found. The checkpointer records snapshots during each agent execution.
+            {t("tt.empty")}
           </div>
         )}
 
@@ -93,13 +95,13 @@ export default function TimeTravelPanel({ threadId, onBranchCreated, onClose }: 
                   </div>
                   <div className="time-travel-item-body">
                     <div className="time-travel-item-header">
-                      <span className="time-travel-step">Step {cp.step}</span>
+                      <span className="time-travel-step">{t("tt.step").replace("{n}", String(cp.step))}</span>
                       <span className={`time-travel-node ${cp.node}`}>{cp.node === "input" ? "Input" : "Agent Loop"}</span>
-                      <span className="time-travel-next">→ {getNextLabel(cp.next)}</span>
+                      <span className="time-travel-next">{t("tt.next").replace("{next}", getNextLabel(cp.next))}</span>
                     </div>
                     <div className="time-travel-preview">{cp.msg_preview || "(no message)"}</div>
                     <div className="time-travel-meta">
-                      <span>{cp.total_messages} messages</span>
+                      <span>{t("tt.messages").replace("{n}", String(cp.total_messages))}</span>
                     </div>
                     <div className="time-travel-actions">
                       {showBranchInput === cp.checkpoint_id ? (
@@ -108,7 +110,7 @@ export default function TimeTravelPanel({ threadId, onBranchCreated, onClose }: 
                             type="text"
                             value={branchMsg}
                             onChange={(e) => setBranchMsg(e.target.value)}
-                            placeholder="Message for branched thread..."
+                            placeholder={t("tt.branch_placeholder")}
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleBranch(cp.checkpoint_id);
@@ -120,17 +122,17 @@ export default function TimeTravelPanel({ threadId, onBranchCreated, onClose }: 
                             onClick={() => handleBranch(cp.checkpoint_id)}
                             disabled={branching === cp.checkpoint_id}
                           >
-                            {branching === cp.checkpoint_id ? "..." : "Branch"}
+                            {branching === cp.checkpoint_id ? "..." : t("tt.branch")}
                           </button>
-                          <button className="btn-xs" onClick={() => { setShowBranchInput(null); setBranchMsg(""); }}>Cancel</button>
+                          <button className="btn-xs" onClick={() => { setShowBranchInput(null); setBranchMsg(""); }}>{t("files.cancel")}</button>
                         </div>
                       ) : (
                         <button
                           className="btn-xs"
                           onClick={() => setShowBranchInput(cp.checkpoint_id)}
-                          title="Create a new thread from this point"
+                          title={t("tt.branch")}
                         >
-                          ⎇ Branch
+                          ⎇ {t("tt.branch")}
                         </button>
                       )}
                     </div>

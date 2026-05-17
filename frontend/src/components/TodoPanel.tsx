@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "../useLanguage";
 
 interface TodoItem {
   id: string;
@@ -19,6 +20,7 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 export default function TodoPanel() {
+  const { t } = useTranslation();
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -59,7 +61,7 @@ export default function TodoPanel() {
   return (
     <div className="sidebar-section">
       <div className="settings-list-header" style={{ cursor: "pointer" }} onClick={() => setCollapsed(!collapsed)}>
-        <h3>Tasks ({activeTodos.length})</h3>
+        <h3>{t("todo.title")} ({activeTodos.length})</h3>
         <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{collapsed ? "▶" : "▼"}</span>
       </div>
 
@@ -67,24 +69,24 @@ export default function TodoPanel() {
         <>
           {activeTodos.length === 0 && (
             <p style={{ fontSize: 12, color: "var(--text-dim)", padding: "4px 0" }}>
-              No pending tasks. Ask the agent to create one.
+              {t("todo.empty")}
             </p>
           )}
-          {activeTodos.map((t) => (
-            <div key={t.id} className="todo-item" onClick={() => toggleStatus(t)} title="Click to toggle complete">
-              <span className="todo-icon">{STATUS_ICONS[t.status] || "⏳"}</span>
-              <span className="todo-title">{t.title}</span>
+          {activeTodos.map((td) => (
+            <div key={td.id} className="todo-item" onClick={() => toggleStatus(td)} title={t("todo.toggle_hint")}>
+              <span className="todo-icon">{STATUS_ICONS[td.status] || "⏳"}</span>
+              <span className="todo-title">{td.title}</span>
             </div>
           ))}
           {completedTodos.length > 0 && (
             <details style={{ marginTop: 8 }}>
               <summary style={{ fontSize: 11, color: "var(--text-dim)", cursor: "pointer" }}>
-                Completed ({completedTodos.length})
+                {t("todo.completed_placeholder").replace("{n}", String(completedTodos.length))}
               </summary>
-              {completedTodos.map((t) => (
-                <div key={t.id} className="todo-item done" onClick={() => toggleStatus(t)} title="Click to reopen">
+              {completedTodos.map((td) => (
+                <div key={td.id} className="todo-item done" onClick={() => toggleStatus(td)} title={t("todo.toggle_hint")}>
                   <span className="todo-icon">✅</span>
-                  <span className="todo-title" style={{ textDecoration: "line-through", opacity: 0.5 }}>{t.title}</span>
+                  <span className="todo-title" style={{ textDecoration: "line-through", opacity: 0.5 }}>{td.title}</span>
                 </div>
               ))}
             </details>
