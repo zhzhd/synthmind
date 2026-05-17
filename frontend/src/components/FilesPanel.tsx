@@ -190,23 +190,51 @@ export default function FilesPanel({ threadId }: Props) {
     return status ? GIT_STATUS_COLORS[status] : undefined;
   };
 
+  // Compute aggregated git status for a directory based on its children
+  const getDirGitStatus = (dirPath: string): string | undefined => {
+    if (!gitInfo.is_repo) return undefined;
+    const prefix = dirPath.startsWith(gitInfo.repo_root!)
+      ? dirPath.slice(gitInfo.repo_root!.length + 1) + "/"
+      : dirPath + "/";
+    const priority = ["modified", "deleted", "added", "renamed", "copied", "changed", "untracked"];
+    let best: string | undefined;
+    for (const [relPath, entry] of Object.entries(gitStatusMap)) {
+      if (relPath.startsWith(prefix) || relPath === prefix.slice(0, -1)) {
+        const idx = priority.indexOf(entry.status);
+        if (idx !== -1 && (best === undefined || idx < priority.indexOf(best))) {
+          best = entry.status;
+        }
+      }
+    }
+    return best;
+  };
+
   const renderEntry = (entry: FileEntry, depth: number = 0) => {
     const isExpanded = expandedDirs.has(entry.path);
     const gitStatus = getFileGitStatus(entry.path);
-    const statusColor = getStatusColor(gitStatus?.status);
-    const statusIndicator = gitStatus ? (gitStatus.staged ? "●" : "○") : "";
+    const dirStatus = entry.is_dir ? getDirGitStatus(entry.path) : undefined;
+    const effectiveStatus = gitStatus?.status || dirStatus;
+    const statusColor = getStatusColor(effectiveStatus);
 
     if (entry.is_dir) {
       const children = dirContents[entry.path] || [];
       return (
         <div key={entry.path}>
           <div
-            className="file-tree-item"
-            style={{ paddingLeft: 12 + depth * 16 }}
+            className={`file-tree-item ${statusColor ? "has-git-status" : ""}`}
+            style={{
+              paddingLeft: 12 + depth * 16,
+              ...(statusColor ? { borderLeft: `3px solid ${statusColor}`, paddingLeft: 9 + depth * 16 } : {}),
+            }}
             onClick={() => toggleDir(entry.path)}
           >
             <span className="file-tree-icon">{isExpanded ? "📂" : "📁"}</span>
             <span className="file-tree-name">{entry.name}</span>
+            {effectiveStatus && (
+              <span className={`file-status-badge status-${effectiveStatus}`} title={effectiveStatus}>
+                {effectiveStatus === "modified" ? "M" : effectiveStatus === "added" ? "A" : effectiveStatus === "deleted" ? "D" : effectiveStatus === "untracked" ? "?" : "~"}
+              </span>
+            )}
           </div>
           {isExpanded && children.map((child) => renderEntry(child, depth + 1))}
           {isExpanded && children.length === 0 && (
@@ -216,18 +244,23 @@ export default function FilesPanel({ threadId }: Props) {
       );
     }
 
+    const rowStyle: React.CSSProperties = {
+      paddingLeft: 12 + depth * 16,
+    };
+    if (statusColor) {
+      rowStyle.borderLeft = `3px solid ${statusColor}`;
+      rowStyle.paddingLeft = 9 + depth * 16;
+    }
+
     return (
       <div
         key={entry.path}
-        className={`file-tree-item ${selectedFile === entry.path ? "selected" : ""}`}
-        style={{
-          paddingLeft: 12 + depth * 16,
-          ...(statusColor ? { borderLeft: `3px solid ${statusColor}`, paddingLeft: 9 + depth * 16 } : {}),
-        }}
+        className={`file-tree-item ${selectedFile === entry.path ? "selected" : ""} ${statusColor ? "has-git-status" : ""}`}
+        style={rowStyle}
         onClick={() => handleFileClick(entry.path)}
       >
         <span className="file-tree-icon">{getFileIcon(entry.name)}</span>
-        <span className="file-tree-name">{entry.name}</span>
+        <span className="file-tree-name" style={statusColor ? { color: statusColor } : undefined}>{entry.name}</span>
         {gitStatus && (
           <span className={`file-status-badge status-${gitStatus.status}`} title={gitStatus.status}>
             {gitStatus.status === "modified" ? "M" : gitStatus.status === "added" ? "A" : gitStatus.status === "deleted" ? "D" : gitStatus.status === "untracked" ? "?" : gitStatus.status === "renamed" ? "R" : "~"}
@@ -341,6 +374,22 @@ export default function FilesPanel({ threadId }: Props) {
           </div>
         )}
       </div>
+
+      {gitInfo.is_repo && gitStatus.length > 0 && (
+        <div className="git-status-legend">
+          {Object.entries(GIT_STATUS_COLORS).map(([status, color]) => {
+            const hasStatus = gitStatus.some(e => e.status === status);
+            if (!hasStatus) return null;
+            const label = status === "modified" ? "Modified" : status === "added" ? "Added" : status === "deleted" ? "Deleted" : status === "untracked" ? "Untracked" : status === "renamed" ? "Renamed" : status;
+            return (
+              <span key={status} className="git-status-legend-item" style={{ color }}>
+                <span className="git-status-legend-dot" style={{ background: color }} />
+                {label}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       <div className="files-panel-body">
         <div className="files-tree">

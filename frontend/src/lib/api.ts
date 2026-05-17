@@ -426,6 +426,210 @@ export async function fetchGitRemotes(path: string): Promise<{ remotes: { name: 
   return res.json();
 }
 
+export async function gitStashList(path: string): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/stash?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Phase 2 Git operations ──────────────────────────
+
+export interface GitTag {
+  name: string;
+  commit: string;
+  date: string;
+  message: string;
+}
+
+export async function gitCherryPick(path: string, commits: string[], noCommit = false): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/cherry-pick`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, commits, no_commit: noCommit }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gitRevert(path: string, commit: string, noCommit = false): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/revert`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, commit, no_commit: noCommit }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchGitTags(path: string): Promise<{ tags: GitTag[] }> {
+  const res = await fetch(`${API_BASE}/api/git/tags?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(`Failed to fetch tags: ${res.statusText}`);
+  return res.json();
+}
+
+export async function gitCreateTag(path: string, name: string, message = "", commit = ""): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/tags`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, name, message, commit }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gitDeleteTag(path: string, name: string): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/tags`, {
+    method: "DELETE", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, name }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gitRebase(path: string, onto: string, branch = ""): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/rebase`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, onto, branch }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Phase 3: Conflict & diff ─────────────────────────
+
+export interface ConflictSegment {
+  type: "ours" | "base" | "theirs" | "context";
+  content: string;
+}
+
+export interface ConflictFile {
+  file: string;
+  segments: ConflictSegment[];
+  raw_diff: string;
+}
+
+export interface ConflictsResponse {
+  conflicted: ConflictFile[];
+}
+
+export interface HunkLine {
+  type: "added" | "removed" | "context";
+  old_ln: number | null;
+  new_ln: number | null;
+  text: string;
+}
+
+export interface HunkInfo {
+  old_start: number;
+  new_start: number;
+  header: string;
+  lines: HunkLine[];
+}
+
+export interface NumberedDiffResult {
+  diff?: string;
+  file?: string;
+  hunks?: HunkInfo[];
+  diffs?: { file: string; diff: string; hunks: HunkInfo[] }[];
+}
+
+export async function fetchGitConflicts(path: string): Promise<ConflictsResponse> {
+  const res = await fetch(`${API_BASE}/api/git/conflicts?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(`Failed to fetch conflicts: ${res.statusText}`);
+  return res.json();
+}
+
+export async function gitResolveConflict(path: string, file: string, strategy: "ours" | "theirs" | "manual", content = ""): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/resolve`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, file, strategy, content }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchGitDiffNumbered(path: string, file?: string, cached?: boolean): Promise<NumberedDiffResult> {
+  const params = `path=${encodeURIComponent(path)}&format=numbered${file ? `&file=${encodeURIComponent(file)}` : ""}${cached ? "&cached=true" : ""}`;
+  const res = await fetch(`${API_BASE}/api/git/diff?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch diff: ${res.statusText}`);
+  return res.json();
+}
+
+// ── Phase 4: Interactive rebase ────────────────────────
+
+export interface RebasePlanCommit {
+  hash_full: string;
+  hash: string;
+  author: string;
+  message: string;
+}
+
+export interface RebasePlanResponse {
+  commits: RebasePlanCommit[];
+}
+
+export interface RebaseStatusResponse {
+  in_progress: boolean;
+  onto?: string;
+  dir?: string;
+}
+
+export interface RebaseAction {
+  action: "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
+  commit_hash: string;
+  message: string;
+}
+
+export async function fetchRebasePlan(path: string, onto: string, branch?: string): Promise<RebasePlanResponse> {
+  const res = await fetch(`${API_BASE}/api/git/rebase/plan`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, onto, branch: branch || "" }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gitRebaseInteractive(path: string, onto: string, actions: RebaseAction[]): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/rebase/interactive`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, onto, actions }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchRebaseStatus(path: string): Promise<RebaseStatusResponse> {
+  const res = await fetch(`${API_BASE}/api/git/rebase/status`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gitRebaseContinue(path: string): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/rebase/continue`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gitRebaseAbort(path: string): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/rebase/abort`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  return res.json();
+}
+
+export async function gitRebaseSkip(path: string): Promise<GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/rebase/skip`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Files (workspace explorer) ──────────────────────
 
 export interface FileEntry {

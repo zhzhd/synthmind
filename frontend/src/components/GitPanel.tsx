@@ -1,82 +1,21 @@
-import { useEffect, useState, useCallback } from "react";
-import { fetchGitInfo, fetchGitStatus, fetchGitRemotes, gitPull, gitPush, gitFetch, gitStash, fetchThreadWorkdir } from "../lib/api";
-import type { GitStatusEntry } from "../lib/api";
+import { GitProvider, useGit } from "../GitContext";
 import ChangesView from "./ChangesView";
 import LogView from "./LogView";
 import BranchManager from "./BranchManager";
 import GitConsole from "./GitConsole";
 
-interface ConsoleEntry {
-  command: string;
-  output: string;
-  timestamp: number;
-}
-
 interface Props {
   threadId?: string;
-  repoRoot?: string;
 }
 
-export default function GitPanel({ threadId }: Props) {
-  const [repoRoot, setRepoRoot] = useState("");
-  const [branch, setBranch] = useState("");
-  const [refType, setRefType] = useState("branch");
-  const [statusEntries, setStatusEntries] = useState<GitStatusEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"changes" | "log" | "branches">("changes");
-  const [consoleOpen, setConsoleOpen] = useState(true);
-  const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
+function GitPanelContent() {
+  const {
+    repoRoot, branch, loading, consoleEntries, refresh,
+    handlePull, handlePush, handleFetch, handleStash,
+    view, setView, consoleOpen, setConsoleOpen, clearConsole,
+  } = useGit();
 
-  const addConsole = useCallback((command: string, output: string) => {
-    setConsoleEntries((prev) => [...prev, { command, output, timestamp: Date.now() }]);
-  }, []);
-
-  const refresh = useCallback(async () => {
-    if (!repoRoot) return;
-    try {
-      const info = await fetchGitInfo(repoRoot);
-      setBranch(info.branch || "");
-      setRefType(info.ref_type || "branch");
-      if (info.is_repo) {
-        const status = await fetchGitStatus(repoRoot);
-        setStatusEntries(status.entries);
-      } else {
-        setStatusEntries([]);
-      }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }, [repoRoot]);
-
-  // Fetch workdir from thread
-  useEffect(() => {
-    if (!threadId) return;
-    fetchThreadWorkdir(threadId)
-      .then((r) => { if (r.workdir) setRepoRoot(r.workdir); })
-      .catch(() => {});
-  }, [threadId]);
-
-  useEffect(() => {
-    if (repoRoot) refresh();
-  }, [repoRoot, refresh]);
-
-  const handlePull = async () => {
-    try { const r = await gitPull(repoRoot); addConsole(r.command || "pull", r.stdout || r.stderr || ""); refresh(); }
-    catch (e: any) { addConsole("pull", `Error: ${e.message}`); }
-  };
-  const handlePush = async () => {
-    try { const r = await gitPush(repoRoot); addConsole(r.command || "push", r.stdout || r.stderr || ""); refresh(); }
-    catch (e: any) { addConsole("push", `Error: ${e.message}`); }
-  };
-  const handleFetch = async () => {
-    try { const r = await gitFetch(repoRoot); addConsole(r.command || "fetch", r.stdout || r.stderr || ""); refresh(); }
-    catch (e: any) { addConsole("fetch", `Error: ${e.message}`); }
-  };
-  const handleStash = async () => {
-    try { const r = await gitStash(repoRoot, "push", "WIP"); addConsole(r.command || "stash", r.stdout || r.stderr || ""); refresh(); }
-    catch (e: any) { addConsole("stash", `Error: ${e.message}`); }
-  };
-
-  const changedCount = statusEntries.length;
+  const changedCount = useGit().statusEntries.length;
 
   if (!repoRoot) {
     return <div className="git-panel"><div className="git-empty">Set a working directory in the sidebar to use Git features.</div></div>;
@@ -111,13 +50,9 @@ export default function GitPanel({ threadId }: Props) {
       {/* Content */}
       <div className="git-panel-content">
         {loading && <div className="git-panel-loading">Loading...</div>}
-        {!loading && view === "changes" && (
-          <ChangesView repoRoot={repoRoot} entries={statusEntries} onRefresh={refresh} onConsole={addConsole} />
-        )}
-        {!loading && view === "log" && <LogView repoRoot={repoRoot} />}
-        {!loading && view === "branches" && (
-          <BranchManager repoRoot={repoRoot} onRefresh={refresh} onConsole={addConsole} />
-        )}
+        {!loading && view === "changes" && <ChangesView />}
+        {!loading && view === "log" && <LogView />}
+        {!loading && view === "branches" && <BranchManager />}
       </div>
 
       {/* Console */}
@@ -125,8 +60,16 @@ export default function GitPanel({ threadId }: Props) {
         entries={consoleEntries}
         open={consoleOpen}
         onToggle={() => setConsoleOpen(!consoleOpen)}
-        onClear={() => setConsoleEntries([])}
+        onClear={clearConsole}
       />
     </div>
+  );
+}
+
+export default function GitPanel({ threadId }: Props) {
+  return (
+    <GitProvider threadId={threadId}>
+      <GitPanelContent />
+    </GitProvider>
   );
 }
