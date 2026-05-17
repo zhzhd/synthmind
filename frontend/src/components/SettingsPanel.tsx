@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTheme } from "../ThemeContext";
 import type { ProviderConfig, SkillInfo, SkillDetail, MemoryEntry } from "../lib/api";
 import {
   fetchConfigs, createConfig, updateConfig, deleteConfig, testConfig,
@@ -22,7 +23,8 @@ const EMPTY_PROVIDER_FORM = { name: "", provider: "deepseek" as const, model: ""
 type ProviderForm = typeof EMPTY_PROVIDER_FORM;
 
 export default function SettingsPanel({ open, onClose }: Props) {
-  const [tab, setTab] = useState<"providers" | "feishu" | "skills" | "memory" | "whitelist" | "traces">("providers");
+  const { theme, setTheme } = useTheme();
+  const [tab, setTab] = useState<"providers" | "feishu" | "skills" | "memory" | "whitelist" | "traces" | "appearance">("providers");
   if (!open) return null;
 
   return (
@@ -36,11 +38,21 @@ export default function SettingsPanel({ open, onClose }: Props) {
             <button className={`tab-btn ${tab === "feishu" ? "active" : ""}`} onClick={() => setTab("feishu")}>Feishu</button>
             <button className={`tab-btn ${tab === "whitelist" ? "active" : ""}`} onClick={() => setTab("whitelist")}>Whitelist</button>
             <button className={`tab-btn ${tab === "traces" ? "active" : ""}`} onClick={() => setTab("traces")}>Traces</button>
+            <button className={`tab-btn ${tab === "appearance" ? "active" : ""}`} onClick={() => setTab("appearance")}>Appearance</button>
           </div>
-          <button className="settings-close" onClick={onClose}>✕</button>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button
+              className="theme-toggle"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            >
+              {theme === "dark" ? "☀️" : "🌙"}
+            </button>
+            <button className="settings-close" onClick={onClose}>✕</button>
+          </div>
         </div>
 
-        {tab === "providers" ? <ProviderTab /> : tab === "feishu" ? <FeishuTab /> : tab === "skills" ? <SkillsTab /> : tab === "memory" ? <MemoryTab /> : tab === "whitelist" ? <WhitelistTab /> : <TracesTab />}
+        {tab === "providers" ? <ProviderTab /> : tab === "feishu" ? <FeishuTab /> : tab === "skills" ? <SkillsTab /> : tab === "memory" ? <MemoryTab /> : tab === "whitelist" ? <WhitelistTab /> : tab === "traces" ? <TracesTab /> : <AppearanceTab />}
       </div>
     </div>
   );
@@ -512,6 +524,34 @@ function WhitelistTab() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ── Appearance tab ───────────────────────────────────────────── */
+
+function AppearanceTab() {
+  const { theme, setTheme, font, setFont } = useTheme();
+  return (
+    <div className="settings-body" style={{ flexDirection: "column" }}>
+      <div className="appearance-section">
+        <h3>Color Theme</h3>
+        <label>Theme</label>
+        <select value={theme} onChange={(e) => setTheme(e.target.value as "dark" | "light")}>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
+      <div className="appearance-section">
+        <h3>Font</h3>
+        <label>Interface Font</label>
+        <select value={font} onChange={(e) => setFont(e.target.value as any)}>
+          <option value="inter">Inter</option>
+          <option value="system">System Default</option>
+          <option value="serif">Serif</option>
+          <option value="mono">Monospace</option>
+        </select>
+      </div>
     </div>
   );
 }

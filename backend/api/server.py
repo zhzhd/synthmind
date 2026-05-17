@@ -86,7 +86,7 @@ async def _start_bot():
 
 app = FastAPI(title="SynthMind API", version="0.1.0", lifespan=lifespan)
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Register routers
 from api.chat import router as chat_router
@@ -105,6 +105,7 @@ from api.chat_stream import router as chat_stream_router
 from api.balance import router as balance_router
 from api.files import router as files_router
 from api.git import router as git_router
+from api.time_travel import router as time_travel_router
 from bot.feishu import FeishuBot
 
 app.include_router(chat_router)
@@ -123,3 +124,4 @@ app.include_router(chat_stream_router)
 app.include_router(balance_router)
 app.include_router(files_router)
 app.include_router(git_router)
+app.include_router(time_travel_router)

@@ -459,6 +459,39 @@ export async function fetchFileContent(path: string): Promise<FileContentRespons
   return res.json();
 }
 
+export async function saveFileContent(path: string, content: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/files/content`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content }),
+  });
+  if (!res.ok) throw new Error(`Failed to save file: ${res.statusText}`);
+}
+
+export async function fetchFIMComplete(
+  content: string,
+  cursorLine: number,
+  cursorColumn: number,
+  maxTokens?: number,
+): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/files/fim-complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      content,
+      cursor_line: cursorLine,
+      cursor_column: cursorColumn,
+      max_tokens: maxTokens || 256,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `FIM completion failed: ${res.statusText}`);
+  }
+  const data = await res.json();
+  return data.completion;
+}
+
 export type StreamEventType = "reasoning" | "content" | "done" | "error" | "fallback";
 
 export interface StreamEvent {
@@ -566,6 +599,42 @@ export async function approveTool(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Approval failed: ${res.statusText}`);
+  return res.json();
+}
+
+// ── Time Travel / Checkpoints ────────────────────────────
+
+export interface CheckpointInfo {
+  checkpoint_id: string;
+  step: number;
+  node: string;
+  next: string[];
+  total_messages: number;
+  msg_preview: string;
+}
+
+export interface BranchResponse extends ApprovalResponse {
+  branched_from?: string;
+}
+
+export async function fetchCheckpoints(threadId: string): Promise<CheckpointInfo[]> {
+  const res = await fetch(`${API_BASE}/api/threads/${encodeURIComponent(threadId)}/checkpoints`);
+  if (!res.ok) throw new Error(`Failed to fetch checkpoints: ${res.statusText}`);
+  const data = await res.json();
+  return data.checkpoints || [];
+}
+
+export async function branchFromCheckpoint(
+  threadId: string,
+  checkpointId: string,
+  message?: string,
+): Promise<BranchResponse> {
+  const res = await fetch(`${API_BASE}/api/threads/${encodeURIComponent(threadId)}/branch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ checkpoint_id: checkpointId, message: message || "" }),
+  });
+  if (!res.ok) throw new Error(`Branch failed: ${res.statusText}`);
   return res.json();
 }
 

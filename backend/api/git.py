@@ -145,7 +145,7 @@ async def git_diff(path: str = ".", file: str = "", cached: bool = Query(default
     if cached:
         args.append("--cached")
     if file:
-        args.append("--", file)
+        args.extend(["--", file])
 
     output = _run_git(repo_root, *args)
     if file:

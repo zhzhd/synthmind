@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ModelConfig, PendingApproval } from "../lib/api";
 import { sendMessage, approveTool, approveAll, fetchThreadHistory } from "../lib/api";
+import TimeTravelPanel from "./TimeTravelPanel";
 
 interface Message {
   role: "user" | "assistant" | "tool-call" | "approval";
@@ -98,6 +99,7 @@ export default function ChatWindow({ modelConfig, threadId: propThreadId, onThre
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showTimeTravel, setShowTimeTravel] = useState(false);
 
   // Sync threadId when prop changes externally (e.g. sidebar thread selection)
   useEffect(() => {
@@ -366,6 +368,11 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
+  const handleBranchCreated = (newThreadId: string) => {
+    setShowTimeTravel(false);
+    onThreadChange?.(newThreadId);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -375,6 +382,18 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
 
   return (
     <div className="chat-area">
+      {threadId && (
+        <div className="chat-header">
+          <span className="chat-header-title">Chat</span>
+          <button
+            className="header-btn"
+            onClick={() => setShowTimeTravel(true)}
+            title="Time Travel — browse execution history and branch"
+          >
+            ⟳
+          </button>
+        </div>
+      )}
       <div className="messages">
         {messages.map((msg, i) => {
           // Show Approve All button before the first unresolved approval card
@@ -420,6 +439,14 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
           </button>
         </div>
       </div>
+
+      {showTimeTravel && threadId && (
+        <TimeTravelPanel
+          threadId={threadId}
+          onBranchCreated={handleBranchCreated}
+          onClose={() => setShowTimeTravel(false)}
+        />
+      )}
     </div>
   );
 }
