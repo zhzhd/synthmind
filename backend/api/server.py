@@ -20,9 +20,11 @@ _bot_instance = None
 async def lifespan(app: FastAPI):
     global _bot_task
     print(f"🟢 SynthMind backend starting on {HOST}:{PORT}")
+    print(f"[Bot] BOT_MODE='{BOT_MODE}' (from env BOT_MODE={os.getenv('BOT_MODE', '(not set)')})")
 
     # Start bot if configured
     if BOT_MODE == "feishu":
+        print(f"[Bot] BOT_MODE==feishu, starting Feishu bot...")
         _bot_task = asyncio.create_task(_start_bot())
 
         # Register webhook endpoint
@@ -52,6 +54,9 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"[FeishuBot] Webhook error: {e}")
             return {"code": 0}
+
+    else:
+        print(f"[Bot] BOT_MODE is '{BOT_MODE}' — bot not started (set BOT_MODE=feishu to enable)")
 
     yield
 

@@ -48,6 +48,31 @@ def _run_git_detailed(path: str, *args: str) -> dict[str, Any]:
 # ── Public API ──────────────────────────────────────────────────
 
 
+def _ensure_git_user_config(repo_root: str) -> None:
+    """Set repo-local user.name/user.email if not configured."""
+    try:
+        import getpass
+        import socket
+        name = subprocess.run(
+            ["git", "config", "user.name"], cwd=repo_root, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        email = subprocess.run(
+            ["git", "config", "user.email"], cwd=repo_root, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        if not name:
+            subprocess.run(
+                ["git", "config", "user.name", getpass.getuser()],
+                cwd=repo_root, capture_output=True, timeout=5,
+            )
+        if not email:
+            subprocess.run(
+                ["git", "config", "user.email", f"{getpass.getuser()}@{socket.gethostname()}"],
+                cwd=repo_root, capture_output=True, timeout=5,
+            )
+    except Exception:
+        pass  # non-blocking
+
+
 def resolve_path(path: str) -> str:
     return str(Path(path).resolve())
 
@@ -167,6 +192,8 @@ def unstage(repo_root: str, files: list[str]) -> dict[str, Any]:
 
 def commit_staged(repo_root: str, message: str, author: str = "") -> dict[str, Any]:
     """Commit only staged changes."""
+    # Ensure git user config is set — use repo-local config to avoid side effects
+    _ensure_git_user_config(repo_root)
     args = ["commit", "-m", message]
     if author:
         args.extend(["--author", author])
@@ -832,4 +859,24 @@ def merge_safe(repo_root: str, branch: str) -> dict[str, Any]:
         else:
             raise ValueError(stderr)
     result["stashed"] = stashed
+    return result
+
+
+def clone_repo(url: str, target_dir: str = "", branch: str = "") -> dict[str, Any]:
+    """Clone a remote repository. target_dir is the full path for the cloned repo."""
+    import os as _os
+    if not target_dir:
+        raise ValueError("target_dir is required")
+    parent = _os.path.dirname(target_dir)
+    if parent and not _os.path.exists(parent):
+        _os.makedirs(parent, exist_ok=True)
+    args = ["clone"]
+    if branch:
+        args.extend(["-b", branch])
+    args.append(url)
+    args.append(target_dir)
+    result = _run_git_detailed(parent if parent else ".", *args)
+    if result["returncode"] != 0:
+        raise ValueError(result["stderr"].strip())
+    result["cloned_path"] = _os.path.abspath(target_dir)
     return result

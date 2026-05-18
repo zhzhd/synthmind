@@ -630,6 +630,17 @@ export async function gitRebaseSkip(path: string): Promise<GitCommandResult> {
   return res.json();
 }
 
+// ── Clone ───────────────────────────────────────────
+
+export async function gitClone(url: string, targetDir: string, branch = ""): Promise<{ cloned_path: string } & GitCommandResult> {
+  const res = await fetch(`${API_BASE}/api/git/clone`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, target_dir: targetDir, branch }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Files (workspace explorer) ──────────────────────
 
 export interface FileEntry {

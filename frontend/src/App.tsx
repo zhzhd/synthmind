@@ -7,7 +7,13 @@ import TodoPanel from "./components/TodoPanel";
 import ThreadListPanel from "./components/ThreadListPanel";
 import RightPanel from "./components/RightPanel";
 import BalanceDisplay from "./components/BalanceDisplay";
+import CloneDialog from "./components/CloneDialog";
+import GitDropdown from "./components/GitDropdown";
+import GitToast from "./components/GitToast";
+import GitActionDialog from "./components/GitActionDialog";
+import { GitProvider } from "./GitContext";
 import type { ModelConfig } from "./lib/api";
+import type { TabId } from "./components/RightPanel";
 
 const STORAGE_KEY = "synthmind_model_config";
 
@@ -31,6 +37,7 @@ export default function App() {
   const [modelConfig, setModelConfig] = useState<ModelConfig>(loadSavedConfig);
   const [_agentStatus] = useState<"idle" | "thinking" | "error">("idle");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [cloneOpen, setCloneOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -75,6 +82,7 @@ export default function App() {
     } catch { return 340; }
   });
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelTab, setRightPanelTab] = useState<TabId>("git");
 
   useEffect(() => {
     localStorage.setItem("synthmind_right_panel_width", String(rightPanelWidth));
@@ -120,49 +128,70 @@ export default function App() {
     };
   }, [isRightResizing]);
 
-  return (
-    <div className="app">
-      <header className="app-header">
-        <h1>SynthMind</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <AgentStatus status={_agentStatus} provider={modelConfig.provider} model={modelConfig.model} />
-          <button className="header-btn" onClick={() => setSettingsOpen(true)} title="Settings">⚙</button>
-        </div>
-      </header>
+  const handleGitNavigate = useCallback((_tab: string, _gitView?: string) => {
+    setRightPanelTab(_tab as TabId);
+    setRightPanelOpen(true);
+  }, []);
 
-      <div className="app-body">
-        <aside className="sidebar" style={{ width: sidebarWidth }}>
-          <ModelSelector key={refreshKey} config={modelConfig} onChange={setModelConfig} />
-          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
-          <ThreadListPanel currentThreadId={activeThreadId} onSelectThread={setActiveThreadId} />
-          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
-          <TodoPanel />
-          <div style={{ flex: 1 }} />
-          <BalanceDisplay />
-          <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
-        </aside>
-        <main className="main-area">
-          <ChatWindow modelConfig={modelConfig} threadId={activeThreadId} onThreadChange={setActiveThreadId} />
-        </main>
-        {rightPanelOpen && (
-          <>
-            <div className="right-panel-resize-handle" onMouseDown={handleRightResizeMouseDown} />
-            <div className="right-panel-wrapper" style={{ width: rightPanelWidth }}>
-              <RightPanel activeThreadId={activeThreadId} />
-            </div>
-          </>
+  return (
+    <GitProvider threadId={activeThreadId}>
+      <div className="app">
+        <header className="app-header">
+          <h1>SynthMind</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <AgentStatus status={_agentStatus} provider={modelConfig.provider} model={modelConfig.model} />
+            <GitDropdown onNavigate={handleGitNavigate} onOpenClone={() => setCloneOpen(true)} />
+            <button className="header-btn" onClick={() => setSettingsOpen(true)} title="Settings">⚙</button>
+          </div>
+        </header>
+
+        <div className="app-body">
+          <aside className="sidebar" style={{ width: sidebarWidth }}>
+            <ModelSelector key={refreshKey} config={modelConfig} onChange={setModelConfig} />
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+            <ThreadListPanel currentThreadId={activeThreadId} onSelectThread={setActiveThreadId} />
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+            <TodoPanel />
+            <div style={{ flex: 1 }} />
+            <BalanceDisplay />
+            <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
+          </aside>
+          <main className="main-area">
+            <ChatWindow modelConfig={modelConfig} threadId={activeThreadId} onThreadChange={setActiveThreadId} />
+          </main>
+          {rightPanelOpen && (
+            <>
+              <div className="right-panel-resize-handle" onMouseDown={handleRightResizeMouseDown} />
+              <div className="right-panel-wrapper" style={{ width: rightPanelWidth }}>
+                <RightPanel activeThreadId={activeThreadId} activeTab={rightPanelTab} onTabChange={setRightPanelTab} />
+              </div>
+            </>
+          )}
+          <button
+            className="right-panel-toggle"
+            style={rightPanelOpen ? { right: `${rightPanelWidth + 4}px` } : undefined}
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            title={rightPanelOpen ? "Close right panel" : "Open right panel"}
+          >
+            {rightPanelOpen ? "▶" : "◀"}
+          </button>
+        </div>
+
+        {cloneOpen && (
+          <CloneDialog
+            threadId={activeThreadId}
+            onClose={() => setCloneOpen(false)}
+            onCloned={(_path) => {
+              setCloneOpen(false);
+              setRefreshKey((k) => k + 1);
+            }}
+          />
         )}
-        <button
-          className="right-panel-toggle"
-          style={rightPanelOpen ? { right: `${rightPanelWidth + 4}px` } : undefined}
-          onClick={() => setRightPanelOpen(!rightPanelOpen)}
-          title={rightPanelOpen ? "Close right panel" : "Open right panel"}
-        >
-          {rightPanelOpen ? "▶" : "◀"}
-        </button>
+        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </div>
 
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </div>
+      <GitToast />
+      <GitActionDialog />
+    </GitProvider>
   );
 }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from core.state import (
     GitCheckoutRequest,
     GitCherryPickRequest,
+    GitCloneRequest,
     GitCommitRequest,
     GitCreateBranchRequest,
     GitCreateTagRequest,
@@ -314,3 +315,14 @@ async def git_rebase_skip(req: RebaseSkipRequest):
         return git_service.rebase_skip(repo_root)
     except ValueError as e:
         raise HTTPException(400, f"Rebase skip failed: {e}")
+
+
+# ── Clone ───────────────────────────────────────────────────
+
+
+@router.post("/api/git/clone")
+async def git_clone(req: GitCloneRequest):
+    try:
+        return git_service.clone_repo(req.url, req.target_dir, req.branch)
+    except ValueError as e:
+        raise HTTPException(400, f"Clone failed: {e}")

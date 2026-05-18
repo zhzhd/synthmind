@@ -262,3 +262,10 @@ class GitMergeSafeRequest(BaseModel):
     path: str
     branch: str
     stash_on_dirty: bool = True
+
+
+class GitCloneRequest(BaseModel):
+    """Clone a remote repository."""
+    url: str
+    target_dir: str = ""
+    branch: str = ""

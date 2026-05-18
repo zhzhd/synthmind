@@ -1,19 +1,20 @@
+import { useEffect } from "react";
 import { GitProvider, useGit } from "../GitContext";
 import ChangesView from "./ChangesView";
-import LogView from "./LogView";
-import BranchManager from "./BranchManager";
 import GitConsole from "./GitConsole";
 
 interface Props {
   threadId?: string;
 }
 
-function GitPanelContent() {
+export function GitPanelContent() {
   const {
-    repoRoot, branch, loading, consoleEntries, refresh,
-    handlePull, handlePush, handleFetch, handleStash,
-    view, setView, consoleOpen, setConsoleOpen, clearConsole,
+    repoRoot, branch, loading, consoleEntries,
+    consoleOpen, setConsoleOpen, clearConsole, refresh,
   } = useGit();
+
+  // Refresh git status whenever the panel mounts (e.g. tab switch)
+  useEffect(() => { refresh(); }, []);
 
   const changedCount = useGit().statusEntries.length;
 
@@ -23,7 +24,7 @@ function GitPanelContent() {
 
   return (
     <div className="git-panel">
-      {/* Header */}
+      {/* Header — branch + count only */}
       <div className="git-panel-header">
         <div className="git-toolbar">
           <button className="git-branch-btn" title={branch}>
@@ -32,27 +33,13 @@ function GitPanelContent() {
           {changedCount > 0 && (
             <span className="git-changed-count" title={`${changedCount} file(s) changed`}>{changedCount} ✎</span>
           )}
-          <div className="git-view-toggles">
-            <button className={`git-view-btn ${view === "changes" ? "active" : ""}`} onClick={() => setView("changes")}>C</button>
-            <button className={`git-view-btn ${view === "log" ? "active" : ""}`} onClick={() => setView("log")}>L</button>
-            <button className={`git-view-btn ${view === "branches" ? "active" : ""}`} onClick={() => setView("branches")}>B</button>
-          </div>
-        </div>
-        <div className="git-action-bar">
-          <button className="git-action-btn" onClick={handlePull} title="Pull">↓ Pull</button>
-          <button className="git-action-btn" onClick={handlePush} title="Push">↑ Push</button>
-          <button className="git-action-btn" onClick={handleFetch} title="Fetch">↻ Fetch</button>
-          <button className="git-action-btn" onClick={handleStash} title="Stash">⊞ Stash</button>
-          <button className="git-action-btn" onClick={refresh} title="Refresh" style={{ marginLeft: "auto" }}>↺</button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content — always ChangesView */}
       <div className="git-panel-content">
         {loading && <div className="git-panel-loading">Loading...</div>}
-        {!loading && view === "changes" && <ChangesView />}
-        {!loading && view === "log" && <LogView />}
-        {!loading && view === "branches" && <BranchManager />}
+        {!loading && <ChangesView />}
       </div>
 
       {/* Console */}
