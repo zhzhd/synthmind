@@ -405,6 +405,34 @@ export async function fetchGitLogDetail(path: string, count = 20, skip = 0): Pro
   return res.json();
 }
 
+export interface CommitFileEntry {
+  file: string;
+  status: string;
+  status_raw: string;
+}
+
+export interface CommitDetail {
+  files: CommitFileEntry[];
+  diff: string;
+}
+
+export async function fetchGitCommitDetail(path: string, commit: string): Promise<CommitDetail> {
+  const res = await fetch(`${API_BASE}/api/git/commit-detail?path=${encodeURIComponent(path)}&commit=${encodeURIComponent(commit)}`);
+  if (!res.ok) throw new Error(`Failed to fetch commit detail: ${res.statusText}`);
+  return res.json();
+}
+
+export interface CommitFileDiff {
+  file: string;
+  diff: string;
+}
+
+export async function fetchGitCommitFileDiff(path: string, commit: string, file: string): Promise<CommitFileDiff> {
+  const res = await fetch(`${API_BASE}/api/git/commit-file-diff?path=${encodeURIComponent(path)}&commit=${encodeURIComponent(commit)}&file=${encodeURIComponent(file)}`);
+  if (!res.ok) throw new Error(`Failed to fetch commit file diff: ${res.statusText}`);
+  return res.json();
+}
+
 export interface GitCompareResult {
   base: string;
   target: string;

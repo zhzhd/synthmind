@@ -169,6 +169,25 @@ async def git_log_detail(path: str = ".", count: int = Query(default=20), skip: 
     return git_service.get_log(repo_root, count, skip)
 
 
+@router.get("/api/git/commit-detail")
+async def git_commit_detail(path: str = ".", commit: str = ""):
+    repo_root = _require_repo(path)
+    if not commit:
+        raise HTTPException(400, "commit hash required")
+    return git_service.get_commit_detail(repo_root, commit)
+
+
+@router.get("/api/git/commit-file-diff")
+async def git_commit_file_diff(path: str = ".", commit: str = "", file: str = ""):
+    repo_root = _require_repo(path)
+    if not commit or not file:
+        raise HTTPException(400, "commit and file parameters required")
+    try:
+        return git_service.get_commit_file_diff(repo_root, commit, file)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @router.get("/api/git/compare")
 async def git_compare(path: str = ".", base: str = "", target: str = ""):
     repo_root = _require_repo(path)

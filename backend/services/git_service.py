@@ -368,6 +368,43 @@ def get_log(repo_root: str, count: int = 20, skip: int = 0) -> dict[str, Any]:
     return {"commits": commits}
 
 
+def get_commit_detail(repo_root: str, commit_hash: str) -> dict[str, Any]:
+    """Return files changed and unified diff for a single commit."""
+    files_str = _run_git(repo_root, "diff-tree", "--no-commit-id", "-r", "--name-status", commit_hash)
+    file_list: list[dict] = []
+    for line in files_str.strip().split("\n"):
+        if not line.strip():
+            continue
+        parts = line.split("\t", 1)
+        if len(parts) == 2:
+            status_raw = parts[0]
+            file_path = parts[1]
+            # Parse status: "A", "M", "D", "R100", etc.
+            status = status_raw[0] if status_raw else "?"
+            file_list.append({"file": file_path, "status": status, "status_raw": status_raw})
+
+    # Use diff-tree -c which produces clean combined diff output
+    try:
+        diff_output = _run_git(repo_root, "diff-tree", "--no-commit-id", "-r", "-c", "--unified=5", commit_hash)
+    except ValueError:
+        diff_output = ""
+    return {"files": file_list, "diff": diff_output}
+
+
+def get_commit_file_diff(repo_root: str, commit_hash: str, file_path: str) -> dict[str, Any]:
+    """Return diff for a specific file in a commit."""
+    try:
+        # Use diff-tree which produces clean diff output without commit header
+        # For root commits (no parent), use --root flag
+        diff_output = _run_git(repo_root, "diff-tree", "--no-commit-id", "-r", "--unified=5", commit_hash, "--", file_path)
+        if not diff_output.strip():
+            # Fallback: try with --root for root commits
+            diff_output = _run_git(repo_root, "diff-tree", "--no-commit-id", "-r", "--root", "--unified=5", commit_hash, "--", file_path)
+    except ValueError as e:
+        raise ValueError(f"Failed to get file diff: {e}")
+    return {"file": file_path, "diff": diff_output}
+
+
 def compare(repo_root: str, base: str, target: str = "") -> dict[str, Any]:
     """Compare two branches: files changed, ahead/behind counts."""
     if not target:

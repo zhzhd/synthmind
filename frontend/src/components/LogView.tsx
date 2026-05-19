@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
-import { fetchGitLogDetail, gitCherryPick, gitRevert } from "../lib/api";
-import type { GitLogEntry } from "../lib/api";
+import { fetchGitLogDetail, fetchGitCommitDetail, fetchGitCommitFileDiff, gitCherryPick, gitRevert } from "../lib/api";
+import type { GitLogEntry, CommitFileEntry } from "../lib/api";
 import { useGit } from "../GitContext";
 import InteractiveRebase from "./InteractiveRebase";
+
+const STATUS_LABELS: Record<string, string> = {
+  A: "A", M: "M", D: "D", R: "R", C: "C",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  A: "var(--accent-green)", M: "var(--accent-blue)", D: "var(--danger)",
+  R: "var(--accent-blue)", C: "var(--accent-blue)",
+};
 
 export default function LogView() {
   const { repoRoot, refresh, addConsole } = useGit();
@@ -11,6 +20,11 @@ export default function LogView() {
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [commitFiles, setCommitFiles] = useState<Record<string, CommitFileEntry[]>>({});
+  const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
+  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<string>("");
+  const [loadingFileDiff, setLoadingFileDiff] = useState(false);
   const [showRebase, setShowRebase] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: "cherry-pick" | "revert"; hash: string; msg: string } | null>(null);
 
@@ -33,7 +47,46 @@ export default function LogView() {
     }
   };
 
-  useEffect(() => { load(true); }, [repoRoot]);
+  useEffect(() => { load(true); }, [repoRoot]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleExpand = async (hash: string) => {
+    if (expanded === hash) {
+      setExpanded(null);
+      setExpandedFile(null);
+      return;
+    }
+    setExpanded(hash);
+    setExpandedFile(null);
+    // Fetch commit detail if not already cached
+    if (!commitFiles[hash]) {
+      setLoadingDetail(hash);
+      try {
+        const detail = await fetchGitCommitDetail(repoRoot, hash);
+        setCommitFiles((prev) => ({ ...prev, [hash]: detail.files }));
+      } catch {
+        setCommitFiles((prev) => ({ ...prev, [hash]: [] }));
+      } finally {
+        setLoadingDetail(null);
+      }
+    }
+  };
+
+  const handleFileClick = async (hash: string, filePath: string) => {
+    if (expandedFile === filePath) {
+      setExpandedFile(null);
+      return;
+    }
+    setExpandedFile(filePath);
+    setLoadingFileDiff(true);
+    try {
+      const result = await fetchGitCommitFileDiff(repoRoot, hash, filePath);
+      setFileDiff(result.diff || "(no diff — binary or empty change)");
+    } catch {
+      setFileDiff("(error loading diff)");
+    } finally {
+      setLoadingFileDiff(false);
+    }
+  };
 
   const handleCherryPick = async (hash: string) => {
     try {
@@ -71,9 +124,10 @@ export default function LogView() {
           const isConfirming = confirmAction && confirmAction.hash === c.hash;
           const colors = ["var(--accent-green)", "var(--accent-blue)", "var(--primary)", "var(--danger)", "var(--text)"];
           const branchColor = colors[idx % colors.length];
+          const files = commitFiles[c.hash] || [];
           return (
             <div key={c.hash}>
-              <div className="git-log-item" onClick={() => setExpanded(isExpanded ? null : c.hash)}>
+              <div className="git-log-item" onClick={() => handleExpand(c.hash)}>
                 <span className="git-log-graph" style={{ color: branchColor }}>{c.graph_line}</span>
                 <span className="git-log-hash">{c.hash}</span>
                 <span className="git-log-msg">{c.message}</span>
@@ -84,6 +138,36 @@ export default function LogView() {
                   <div className="git-log-detail-row"><strong>Author:</strong> {c.author}</div>
                   <div className="git-log-detail-row"><strong>Hash:</strong> {c.hash_full}</div>
                   {c.refs && <div className="git-log-detail-row"><strong>Refs:</strong> <span className="git-log-refs">{c.refs}</span></div>}
+                  {/* Files changed */}
+                  <div className="git-log-files-title">Files changed:</div>
+                  {loadingDetail === c.hash && <div className="git-log-loading-files">Loading files...</div>}
+                  {files.length > 0 && (
+                    <div className="git-log-files">
+                      {files.map((f) => {
+                        const isFileExpanded = expandedFile === f.file;
+                        return (
+                          <div key={f.file}>
+                            <div
+                              className={`git-log-file ${isFileExpanded ? "active" : ""}`}
+                              onClick={() => handleFileClick(c.hash, f.file)}
+                            >
+                              <span className="git-log-file-status" style={{ color: STATUS_COLORS[f.status] || "var(--text-dim)" }}>
+                                {STATUS_LABELS[f.status] || f.status}
+                              </span>
+                              <span className="git-log-file-path">{f.file}</span>
+                            </div>
+                            {isFileExpanded && (
+                              <div className="git-log-file-diff">
+                                {loadingFileDiff ? "Loading..." : (
+                                  <pre className="git-log-diff-content">{fileDiff}</pre>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="git-log-actions">
                     <button className="btn-xs" onClick={() => setConfirmAction({ type: "cherry-pick", hash: c.hash_full, msg: c.message })}>Cherry-pick</button>
                     <button className="btn-xs" onClick={() => setConfirmAction({ type: "revert", hash: c.hash_full, msg: c.message })}>Revert</button>
@@ -113,3 +197,4 @@ export default function LogView() {
     </div>
   );
 }
+

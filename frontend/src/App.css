@@ -1630,6 +1630,78 @@ body {
   color: var(--accent-blue);
 }
 
+.git-log-files-title {
+  font-weight: 600;
+  margin: 6px 0 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.git-log-loading-files {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+.git-log-files {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  margin: 3px 0 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.git-log-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.git-log-file:hover { background: var(--surface); }
+.git-log-file.active { background: var(--surface); }
+
+.git-log-file-status {
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.git-log-file-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-log-file-diff {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.git-log-diff-content {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 300px;
+  overflow-y: auto;
+  color: var(--text);
+}
+
+.git-log-diff-content .addition { color: var(--accent-green); }
+.git-log-diff-content .deletion { color: var(--danger); }
+
 .git-log-loading, .git-log-more {
   padding: 8px;
   text-align: center;
